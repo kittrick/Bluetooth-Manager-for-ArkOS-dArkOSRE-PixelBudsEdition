@@ -1,4 +1,4 @@
-# R36S Bluetooth Manager
+# R36S Bluetooth Manager — Pixel Buds Edition
 
 ![Platform](https://img.shields.io/badge/Platform-R36S-blue)
 ![OS](https://img.shields.io/badge/OS-ArkOS%20|%20dArkOS-green)
