@@ -9,6 +9,8 @@ This updated script, v4.0, attempts to rectify several issues I was encountering
 
 To Install, place `bt_manager.sh` in `/roms/Tools/` or, if usinc SCP, `/opt/system/Tools/`. From there, I recommend first running option `11`, which installs listener daemons that should try to automatically reconnect to known devices. (This part is still WIP)
 
+[!WARNING] ⚠️ Important, a WIFI connection is needed to install the required libraries!
+
 From there, select option `1` to pair, and option `3` to connect to known devices.
 
 I use the EPIC-CODY theme, and this script is designed to automatically isntall a bluetooth icon into that theme. If you are using a different theme, do a find and replace for `theme-EPIC-CODY` and your theme folder. Again, this hasn't been widely tested, but I assume if you're installing a custom bluetooth manager on your debian based R36S, you might know a thing or two about programming.
