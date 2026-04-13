@@ -2328,7 +2328,8 @@ RunUninstall() {
     # --- Stop and Disable Services ---
     infobox_gui "$T_STEP1_TITLE" "$T_STEP1_MSG"
 
-    for svc in bt-volume-monitor.service bt-sink-switch.service reset-alsa.service pulseaudio.service bluetooth.service; do
+    # ADDED: bt-watcher.service and bt-icon-reset.service to the kill list
+    for svc in bt-volume-monitor.service bt-sink-switch.service reset-alsa.service pulseaudio.service bluetooth.service bt-watcher.service bt-icon-reset.service; do
         if systemctl is-active --quiet "$svc" 2>/dev/null; then
             systemctl stop "$svc" 2>/dev/null
         fi
@@ -2340,14 +2341,18 @@ RunUninstall() {
     # --- Remove Installed Files ---
     infobox_gui "$T_STEP2_TITLE" "$T_STEP2_MSG"
 
+    # ADDED: The new watcher and reset scripts/services to the removal array
     FILES_TO_REMOVE=(
         "/usr/local/bin/bt-volume-monitor.sh"
         "/usr/local/bin/bt-sink-switch.sh"
         "/usr/local/bin/reset-alsa.sh"
+        "/usr/local/bin/bt-watcher.sh"
         "/etc/systemd/system/pulseaudio.service"
         "/etc/systemd/system/bt-volume-monitor.service"
         "/etc/systemd/system/bt-sink-switch.service"
         "/etc/systemd/system/reset-alsa.service"
+        "/etc/systemd/system/bt-watcher.service"
+        "/etc/systemd/system/bt-icon-reset.service"
         "/etc/udev/rules.d/99-input-event3.rules"
         "/etc/pulse/default.pa"
         "/etc/pulse/daemon.conf"
@@ -2367,6 +2372,13 @@ RunUninstall() {
     sed -i '/PULSE_SERVER/d' /etc/environment 2>/dev/null || true
     sed -i '/XDG_RUNTIME_DIR/d' /etc/environment 2>/dev/null || true
     sudo udevadm control --reload-rules
+
+    # ADDED: Clean up the generated SVG icons in the theme folders
+    for DIR in "/roms/themes/theme-EPIC-CODY/_art" "/roms2/themes/theme-EPIC-CODY/_art"; do
+        if [ -d "$DIR" ]; then
+            rm -f "$DIR/bt_on.svg" "$DIR/bt_off.svg"
+        fi
+    done
 
     # --- Restore /etc/bluetooth/main.conf ---
     infobox_gui "$T_STEP3_TITLE" "$T_STEP3_MSG"
