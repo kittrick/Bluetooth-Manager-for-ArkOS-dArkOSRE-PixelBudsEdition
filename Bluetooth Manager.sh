@@ -1,11 +1,12 @@
 #!/bin/bash
 
 #-------------------------------------#
-# BT Manager 4.0                      #
-#                                     #
-# Contributors: djparent, kittrick    #
-# Original dArkOS Bluetooth Manager   #
-# by Jason                            #
+#           BT Manager 3.6            #
+#            By djparent              #
+#             A fork of               #
+#         Bluetooth Manager           #
+#           dArkOS Edition            #
+#             by Jason                #
 #-------------------------------------#
 
 # Copyright (c) 2026 Jason3x
@@ -38,24 +39,21 @@ fi
 # -------------------------------------------------------
 # Variables
 # -------------------------------------------------------
-ARK_UID=$(id -u ark)
-PULSE_SOCKET="/run/user/${ARK_UID}/pulse/native"
 SYSTEM_LANG=""
+GPTOKEYB_PID=""
 CURR_TTY="/dev/tty1"
-SCRIPT_DIR="$(dirname "$(realpath "$0")")"
-ES_CONF="/home/ark/.emulationstation/es_settings.cfg"
-INSTALLED_FLAG="/home/ark/.bt_manager_installed"
+ARK_UID=$(id -u ark)
+SCRIPT_NAME="$(basename "$0")"
 ASOUNDRC="/home/ark/.asoundrc"
 ASOUNDRC_BAK="/home/ark/.asoundrcbak"
-SCRIPT_NAME="$(basename "$0")"
-GPTOKEYB_PID=""
-USE_REALTEK="false" # Realtek drivers not enabled by default
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+PULSE_SOCKET="/run/user/${ARK_UID}/pulse/native"
+INSTALLED_FLAG="/home/ark/.bt_manager_installed"
+ES_CONF="/home/ark/.emulationstation/es_settings.cfg"
 
 # -------------------------------------------------------
 # Initialization
 # -------------------------------------------------------
-# Force the OTG port to stay awake
-echo -1 | sudo tee /sys/bus/usb/devices/1-1/power/autosuspend 2>/dev/null
 export TERM=linux
 mkdir -p /run/user/${ARK_UID}
 chown ark:ark /run/user/${ARK_UID}
@@ -63,7 +61,6 @@ chmod 700 /run/user/${ARK_UID}
 export XDG_RUNTIME_DIR=/run/user/${ARK_UID}
 export PULSE_SERVER=unix:$XDG_RUNTIME_DIR/pulse/native
 export DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus
-export TERM=linux
 
 if [ -f "$ES_CONF" ]; then
     ES_DETECTED=$(grep "name=\"Language\"" "$ES_CONF" | grep -o 'value="[^"]*"' | cut -d '"' -f 2)
@@ -72,7 +69,7 @@ fi
 # -------------------------------------------------------
 # Default configuration : EN
 # -------------------------------------------------------
-T_BACKTITLE="Bluetooth Manager by Jason & djparent "
+T_BACKTITLE="Bluetooth Manager by Jason & djparent"
 T_STARTING="Starting Bluetooth Manager ...\nPlease wait."
 T_ERR_TITLE="Error"
 T_STOPPING="Stopping Bluetooth..."
@@ -201,10 +198,17 @@ T_RES_MSG2="\nWi-Fi is being restored.\nGive it a few seconds to reconnect."
 T_TST_TITLE="Audio Test"
 T_TST_MSG1="\nPushing a native 440Hz test tone through PulseAudio...\nListen closely to your headphones/speakers."
 T_TST_MSG2="\nTest complete.\n\nDid you hear a continuous beep for a few seconds?"
+T_M_UPDATE="Check for Updates"
+T_UP_CHK="Checking for updates..."
+T_UP_DL="Downloading latest version from GitHub..."
+T_UP_SUCC="Update complete! The script will now restart."
+T_UP_ERR_INV="Update failed. Downloaded file is invalid. Check repo filename."
+T_UP_ERR_NET="Update failed. Could not reach GitHub."
+
 
 # --- FRANÇAIS (FR) --- 
 if [[ "$SYSTEM_LANG" == *"fr"* ]]; then
-T_BACKTITLE="Bluetooth Manager par Jason & djparent "
+T_BACKTITLE="Bluetooth Manager par djparent"
 T_STARTING="Demarrage du Bluetooth Manager ...\nVeuillez patienter."
 T_ERR_TITLE="Erreur"
 T_STOPPING="Arret du Bluetooth..."
@@ -304,38 +308,44 @@ T_FORGETTING_MSG="\nSuppression de tous les appareils associes..."
 T_FORGOTTEN_TITLE="Termine"
 T_FORGOTTEN_MSG="\nTous les appareils associes ont ete supprimes."
 T_RESCAN="Relancer"
-T_M_TOGGLE_DRIVER="Changer de Pilote (Generique vs Realtek)"
-T_M_AUDIT="Effectuer un Audit Systeme"
-T_M_TEST_CHIME="Jouer le Son de Test"
-T_M_READ_AUDIT="Lire le Dernier Audit"
-T_M_POWERSHIFT="Power-Shift (Couper Wi-Fi / Forcer BT)"
-T_M_RESTORE_WIFI="Restaurer Wi-Fi (Couper BT / Wi-Fi ON)"
-T_M_SYSTEM_SETUP="Configuration Systeme"
-T_SETUP_TITLE="Configuration Systeme"
-T_SETUP_MSG="\nConfiguration du systeme pour des performances Bluetooth optimales...\nCela prendra un moment."
-T_SETUP_DONE_TITLE="Configuration Terminee"
-T_SETUP_DONE_MSG="\nLa configuration du systeme est terminee !\n\nToutes les regles PulseAudio, les demons en arriere-plan et les icones UI ont ete installes et actives."
-T_DRV_ERR="Pilote rtk_btusb introuvable ! Maintien sur Generique."
-T_DRV_SW_TITLE="Changement de Pilote"
-T_DRV_SW_MSG="\nChangement de la preference vers "
-T_DRV_SW_MSG2="...\nReinitialisation materielle (env. 10s)..."
-T_DRV_SW_SUCC="Le systeme est desormais configure pour:\n"
-T_AUD_TITLE="Audit Termine"
-T_AUD_MSG="\nAudit enregistre.\nUtilisez 'Lire le Dernier Audit' pour le voir."
+T_M_TOGGLE_DRIVER="Changer de pilote (Generique vs Realtek)"
+T_M_AUDIT="Effectuer un audit systeme"
+T_M_TEST_CHIME="Jouer le carillon de test"
+T_M_READ_AUDIT="Lire le dernier audit (Gel de 30s)"
+T_M_POWERSHIFT="Power-Shift (Kill Wi-Fi / Force BT)"
+T_M_RESTORE_WIFI="Restaurer le Wi-Fi (Kill BT / Wi-Fi ON)"
+T_M_SYSTEM_SETUP="Configuration systeme"
+T_SETUP_TITLE="Configuration systeme"
+T_SETUP_MSG="\nConfiguration du systeme pour des performances Bluetooth optimales...\nCela va prendre un moment."
+T_SETUP_DONE_TITLE="Configuration terminee"
+T_SETUP_DONE_MSG="\nLa configuration du systeme est terminee !\n\nToutes les regles PulseAudio, les daemons d'arriere-plan et les icônes de l'interface utilisateur ont ete installes et actives."
+T_DRV_ERR="Pilote rtk_btusb non trouve ! Maintien du pilote generique."
+T_DRV_SW_TITLE="Changement de pilote"
+T_DRV_SW_MSG="\nChangement de preference vers "
+T_DRV_SW_MSG2="...\nReinitialisation du materiel (environ 10s)..."
+T_DRV_SW_SUCC="Le systeme est maintenant configure pour :\n"
+T_AUD_TITLE="Audit termine"
+T_AUD_MSG="\nAudit enregistre dans le journal.\nUtilisez 'Lire le dernier audit' pour le voir."
 T_READ_ERR="\nAucun fichier d'audit trouve."
 T_PWR_TITLE="Power-Shift"
-T_PWR_MSG1="\nDesactivation Wi-Fi et Forcage BT..."
-T_PWR_MSG2="\nLe Wi-Fi est maintenant ETEINT.\nVerifiez le statut et essayez la Recherche."
-T_RES_TITLE="Restauration Wi-Fi"
-T_RES_MSG1="\nDesactivation BT et Restauration Wi-Fi..."
-T_RES_MSG2="\nLe Wi-Fi est en cours de restauration.\nAttendez quelques secondes pour la reconnexion."
+T_PWR_MSG1="\nDesactivation du Wi-Fi et forcage du BT..."
+T_PWR_MSG2="\nLe Wi-Fi est maintenant desactive.\nVerifiez le statut et essayez de scanner."
+T_RES_TITLE="Restaurer le Wi-Fi"
+T_RES_MSG1="\nDesactivation du BT et restauration du Wi-Fi..."
+T_RES_MSG2="\nLe Wi-Fi est en cours de restauration.\nPatientez quelques secondes pour la reconnexion."
 T_TST_TITLE="Test Audio"
-T_TST_MSG1="\nEnvoi d'un signal de 440Hz via PulseAudio...\nEcoutez attentivement vos ecouteurs/haut-parleurs."
+T_TST_MSG1="\nEnvoi d'une tonalite de test native de 440Hz via PulseAudio...\nEcoutez attentivement vos ecouteurs/haut-parleurs."
 T_TST_MSG2="\nTest termine.\n\nAvez-vous entendu un bip continu pendant quelques secondes ?"
+T_M_UPDATE="Verifier les mises a jour"
+T_UP_CHK="Verification des mises a jour..."
+T_UP_DL="Telechargement de la derniere version depuis GitHub..."
+T_UP_SUCC="Mise a jour terminee ! Le script va maintenant redemarrer."
+T_UP_ERR_INV="Echec de la mise a jour. Le fichier telecharge est invalide."
+T_UP_ERR_NET="Echec de la mise a jour. Impossible de joindre GitHub."
 
 # --- ESPAÑOL (ES) ---
 elif [[ "$SYSTEM_LANG" == *"es"* ]]; then
-T_BACKTITLE="Bluetooth Manager por Jason & djparent "
+T_BACKTITLE="Bluetooth Manager por djparent"
 T_STARTING="Iniciando Bluetooth Manager ...\nPor favor espere."
 T_ERR_TITLE="Error"
 T_STOPPING="Deteniendo Bluetooth..."
@@ -435,38 +445,78 @@ T_FORGETTING_MSG="\nEliminando todos los dispositivos emparejados..."
 T_FORGOTTEN_TITLE="Listo"
 T_FORGOTTEN_MSG="\nTodos los dispositivos emparejados han sido eliminados."
 T_RESCAN="Reescanear"
-T_M_TOGGLE_DRIVER="Cambiar Controlador (Generico vs Realtek)"
-T_M_AUDIT="Realizar Auditoria del Sistema"
-T_M_TEST_CHIME="Reproducir Sonido de Prueba"
-T_M_READ_AUDIT="Leer Ultima Auditoria"
-T_M_POWERSHIFT="Power-Shift (Apagar Wi-Fi / Forzar BT)"
-T_M_RESTORE_WIFI="Restaurar Wi-Fi (Apagar BT / Wi-Fi ON)"
-T_M_SYSTEM_SETUP="Configuracion del Sistema"
-T_SETUP_TITLE="Configuracion del Sistema"
-T_SETUP_MSG="\nConfigurando el sistema para un rendimiento optimo de Bluetooth...\nEsto tomara un momento."
-T_SETUP_DONE_TITLE="Configuracion Completada"
-T_SETUP_DONE_MSG="\n¡La configuracion del sistema esta completa!\n\nTodas las reglas de PulseAudio, demonios en segundo plano e iconos de UI han sido instalados y activados."
-T_DRV_ERR="¡Controlador rtk_btusb no encontrado! Manteniendo Generico."
-T_DRV_SW_TITLE="Cambio de Controlador"
-T_DRV_SW_MSG="\nCambiando preferencia a "
-T_DRV_SW_MSG2="...\nReiniciando hardware (~10s)..."
-T_DRV_SW_SUCC="El sistema esta configurado para:\n"
-T_AUD_TITLE="Auditoria Completa"
-T_AUD_MSG="\nAuditoria guardada.\nUse 'Leer Ultima Auditoria' para ver."
-T_READ_ERR="\nNo se encontro archivo de auditoria."
+T_M_TOGGLE_DRIVER="Toggle Driver (Generic vs Realtek)"
+T_M_AUDIT="Perform System Audit"
+T_M_TEST_CHIME="Play Test Chime"
+T_M_READ_AUDIT="Read Last Audit (30s Freeze)"
+T_M_POWERSHIFT="Power-Shift (Kill Wi-Fi / Force BT)"
+T_M_RESTORE_WIFI="Restore Wi-Fi (Kill BT / Wi-Fi ON)"
+T_M_SYSTEM_SETUP="System Setup"
+T_SETUP_TITLE="System Setup"
+T_SETUP_MSG="\nConfiguring system for ultimate Bluetooth performance...\nThis will take a moment."
+T_SETUP_DONE_TITLE="Setup Complete"
+T_SETUP_DONE_MSG="\nSystem Setup is complete!\n\nAll PulseAudio rules, background daemons, and UI icons have been installed and activated."
+T_DRV_ERR="rtk_btusb driver not found! Staying on Generic."
+T_DRV_SW_TITLE="Driver Switch"
+T_DRV_SW_MSG="\nSwitching preference to "
+T_DRV_SW_MSG2="...\nResetting hardware (takes ~10s)..."
+T_DRV_SW_SUCC="System is now configured for:\n"
+T_AUD_TITLE="Audit Complete"
+T_AUD_MSG="\nAudit saved to log.\nUse 'Read Last Audit' to view."
+T_READ_ERR="\nNo audit file found."
 T_PWR_TITLE="Power-Shift"
-T_PWR_MSG1="\nDesactivando Wi-Fi y Forzando BT..."
-T_PWR_MSG2="\nWi-Fi ahora esta APAGADO.\nVerifique el Estado e intente Escanear."
+T_PWR_MSG1="\nDisabling Wi-Fi & Forcing BT..."
+T_PWR_MSG2="\nWi-Fi is now OFF.\nCheck Status and try Scanning."
+T_RES_TITLE="Restore Wi-Fi"
+T_RES_MSG1="\nDisabling BT & Restoring Wi-Fi..."
+T_RES_MSG2="\nWi-Fi is being restored.\nGive it a few seconds to reconnect."
+T_TST_TITLE="Audio Test"
+T_TST_MSG1="\nPushing a native 440Hz test tone through PulseAudio...\nListen closely to your headphones/speakers."
+T_TST_MSG2="\nTest complete.\n\nDid you hear a continuous beep for a few seconds?"
+T_M_UPDATE="Check for Updates"
+T_UP_CHK="Checking for updates..."
+T_UP_DL="Downloading latest version from GitHub..."
+T_UP_SUCC="Update complete! The script will now restart."
+T_UP_ERR_INV="Update failed. Downloaded file is invalid. Check repo filename."
+T_UP_ERR_NET="Update failed. Could not reach GitHub."
+T_M_TOGGLE_DRIVER="Cambiar controlador (Generico vs Realtek)"
+T_M_AUDIT="Realizar auditoria del sistema"
+T_M_TEST_CHIME="Reproducir timbre de prueba"
+T_M_READ_AUDIT="Leer ultima auditoria (Congelacion de 30s)"
+T_M_POWERSHIFT="Power-Shift (Kill Wi-Fi / Force BT)"
+T_M_RESTORE_WIFI="Restaurar Wi-Fi (Kill BT / Wi-Fi ON)"
+T_M_SYSTEM_SETUP="Configuracion del sistema"
+T_SETUP_TITLE="Configuracion del sistema"
+T_SETUP_MSG="\nConfigurando el sistema para un rendimiento Bluetooth optimo...\nEsto llevara un momento."
+T_SETUP_DONE_TITLE="Configuracion completada"
+T_SETUP_DONE_MSG="\n¡La configuracion del sistema se ha completado!\n\nSe han instalado y activado todas las reglas de PulseAudio, daemons de fondo e iconos de la interfaz de usuario."
+T_DRV_ERR="¡No se encontro el controlador rtk_btusb! Manteniendo el generico."
+T_DRV_SW_TITLE="Cambio de controlador"
+T_DRV_SW_MSG="\nCambiando preferencia a "
+T_DRV_SW_MSG2="...\nReiniciando hardware (aprox. 10s)..."
+T_DRV_SW_SUCC="El sistema ahora esta configurado para:\n"
+T_AUD_TITLE="Auditoria completada"
+T_AUD_MSG="\nAuditoria guardada en el registro.\nUse 'Leer ultima auditoria' para verla."
+T_READ_ERR="\nNo se encontro ningun archivo de auditoria."
+T_PWR_TITLE="Power-Shift"
+T_PWR_MSG1="\nDesactivando Wi-Fi y forzando BT..."
+T_PWR_MSG2="\nWi-Fi ahora esta desactivado.\nVerifique el estado e intente escanear."
 T_RES_TITLE="Restaurar Wi-Fi"
-T_RES_MSG1="\nDesactivando BT y Restaurando Wi-Fi..."
-T_RES_MSG2="\nWi-Fi se esta restaurando.\nEspere unos segundos para reconectar."
-T_TST_TITLE="Prueba de Audio"
-T_TST_MSG1="\nEnviando un tono de 440Hz a traves de PulseAudio...\nEscuche atentamente sus auriculares/altavoces."
-T_TST_MSG2="\nPrueba completa.\n\n¿Escucho un pitido continuo durante unos segundos?"
+T_RES_MSG1="\nDesactivando BT y restaurando Wi-Fi..."
+T_RES_MSG2="\nWi-Fi se esta restaurando.\nEspere unos segundos para que se reconecte."
+T_TST_TITLE="Prueba de audio"
+T_TST_MSG1="\nEnviando un tono de prueba nativo de 440Hz a traves de PulseAudio...\nEscuche atentamente sus auriculares/altavoces."
+T_TST_MSG2="\nPrueba completada.\n\n¿Escucho un pitido continuo durante unos segundos?"
+T_M_UPDATE="Buscar actualizaciones"
+T_UP_CHK="Buscando actualizaciones..."
+T_UP_DL="Descargando la ultima version desde GitHub..."
+T_UP_SUCC="¡Actualizacion completada! El script se reiniciara ahora."
+T_UP_ERR_INV="Error de actualizacion. El archivo descargado no es valido."
+T_UP_ERR_NET="Error de actualizacion. No se pudo conectar con GitHub."
 
 # --- PORTUGUÊS (PT) ---
 elif [[ "$SYSTEM_LANG" == *"pt"* ]]; then
-T_BACKTITLE="Bluetooth Manager por Jason & djparent "
+T_BACKTITLE="Bluetooth Manager por djparent"
 T_STARTING="Iniciando Bluetooth Manager ...\nPor favor aguarde."
 T_ERR_TITLE="Erro"
 T_STOPPING="Parando Bluetooth..."
@@ -566,38 +616,44 @@ T_FORGETTING_MSG="\nRemovendo todos os dispositivos emparelhados..."
 T_FORGOTTEN_TITLE="Concluido"
 T_FORGOTTEN_MSG="\nTodos os dispositivos emparelhados foram removidos."
 T_RESCAN="Reescanear"
-T_M_TOGGLE_DRIVER="Alternar Driver (Generico vs Realtek)"
-T_M_AUDIT="Realizar Auditoria do Sistema"
-T_M_TEST_CHIME="Tocar Som de Teste"
-T_M_READ_AUDIT="Ler Ultima Auditoria"
-T_M_POWERSHIFT="Power-Shift (Desligar Wi-Fi / Forcar BT)"
-T_M_RESTORE_WIFI="Restaurar Wi-Fi (Desligar BT / Wi-Fi ON)"
-T_M_SYSTEM_SETUP="Configuracao do Sistema"
-T_SETUP_TITLE="Configuracao do Sistema"
-T_SETUP_MSG="\nConfigurando o sistema para o melhor desempenho do Bluetooth...\nIsso levara um momento."
-T_SETUP_DONE_TITLE="Configuracao Concluida"
-T_SETUP_DONE_MSG="\nA configuracao do sistema esta concluida!\n\nTodas as regras do PulseAudio, daemons em segundo plano e icones da interface foram instalados e ativados."
-T_DRV_ERR="Driver rtk_btusb nao encontrado! Mantendo Generico."
-T_DRV_SW_TITLE="Mudanca de Driver"
-T_DRV_SW_MSG="\nMudando preferencia para "
-T_DRV_SW_MSG2="...\nReiniciando hardware (~10s)..."
-T_DRV_SW_SUCC="O sistema agora esta configurado para:\n"
-T_AUD_TITLE="Auditoria Concluida"
-T_AUD_MSG="\nAuditoria salva.\nUse 'Ler Ultima Auditoria' para ver."
-T_READ_ERR="\nNenhum arquivo de auditoria encontrado."
+T_M_TOGGLE_DRIVER="Toggle Driver (Generic vs Realtek)"
+T_M_AUDIT="Perform System Audit"
+T_M_TEST_CHIME="Play Test Chime"
+T_M_READ_AUDIT="Read Last Audit (30s Freeze)"
+T_M_POWERSHIFT="Power-Shift (Kill Wi-Fi / Force BT)"
+T_M_RESTORE_WIFI="Restore Wi-Fi (Kill BT / Wi-Fi ON)"
+T_M_SYSTEM_SETUP="System Setup"
+T_SETUP_TITLE="System Setup"
+T_SETUP_MSG="\nConfiguring system for ultimate Bluetooth performance...\nThis will take a moment."
+T_SETUP_DONE_TITLE="Setup Complete"
+T_SETUP_DONE_MSG="\nSystem Setup is complete!\n\nAll PulseAudio rules, background daemons, and UI icons have been installed and activated."
+T_DRV_ERR="rtk_btusb driver not found! Staying on Generic."
+T_DRV_SW_TITLE="Driver Switch"
+T_DRV_SW_MSG="\nSwitching preference to "
+T_DRV_SW_MSG2="...\nResetting hardware (takes ~10s)..."
+T_DRV_SW_SUCC="System is now configured for:\n"
+T_AUD_TITLE="Audit Complete"
+T_AUD_MSG="\nAudit saved to log.\nUse 'Read Last Audit' to view."
+T_READ_ERR="\nNo audit file found."
 T_PWR_TITLE="Power-Shift"
-T_PWR_MSG1="\nDesativando Wi-Fi e Forcando BT..."
-T_PWR_MSG2="\nO Wi-Fi agora esta DESLIGADO.\nVerifique o status e tente escanear."
-T_RES_TITLE="Restaurar Wi-Fi"
-T_RES_MSG1="\nDesativando BT e Restaurando Wi-Fi..."
-T_RES_MSG2="\nO Wi-Fi esta sendo restaurado.\nAguarde alguns segundos para reconectar."
-T_TST_TITLE="Teste de Audio"
-T_TST_MSG1="\nEnviando um tom de 440Hz atraves do PulseAudio...\nOuca com atencao em seus fones/alto-falantes."
-T_TST_MSG2="\nTeste concluido.\n\nVoce ouviu um bipe continuo por alguns segundos?"
+T_PWR_MSG1="\nDisabling Wi-Fi & Forcing BT..."
+T_PWR_MSG2="\nWi-Fi is now OFF.\nCheck Status and try Scanning."
+T_RES_TITLE="Restore Wi-Fi"
+T_RES_MSG1="\nDisabling BT & Restoring Wi-Fi..."
+T_RES_MSG2="\nWi-Fi is being restored.\nGive it a few seconds to reconnect."
+T_TST_TITLE="Audio Test"
+T_TST_MSG1="\nPushing a native 440Hz test tone through PulseAudio...\nListen closely to your headphones/speakers."
+T_TST_MSG2="\nTest complete.\n\nDid you hear a continuous beep for a few seconds?"
+T_M_UPDATE="Check for Updates"
+T_UP_CHK="Checking for updates..."
+T_UP_DL="Downloading latest version from GitHub..."
+T_UP_SUCC="Update complete! The script will now restart."
+T_UP_ERR_INV="Update failed. Downloaded file is invalid. Check repo filename."
+T_UP_ERR_NET="Update failed. Could not reach GitHub."
 
 # --- ITALIANO (IT) ---
 elif [[ "$SYSTEM_LANG" == *"it"* ]]; then
-T_BACKTITLE="Bluetooth Manager di Jason & djparent "
+T_BACKTITLE="Bluetooth Manager di djparent"
 T_STARTING="Avvio di Bluetooth Manager ...\nAttendere prego."
 T_ERR_TITLE="Errore"
 T_STOPPING="Arresto Bluetooth..."
@@ -654,7 +710,6 @@ T_CONN_TITLE="Connessione"
 T_PROCESS="Elaborazione..."
 T_POWERING="Accensione adattatore..."
 T_DEV_DEFAULT="Dispositivo"
-T_SYSTEM_FIX="Applicazione delle correzioni di sistema..."
 T_M_DISCONNECT="Disconnettere un dispositivo"
 T_DISCONNECTED="Disconnesso"
 T_UNKNOWN="Dispositivo Sconosciuto"
@@ -697,38 +752,44 @@ T_FORGETTING_MSG="\nRimozione di tutti i dispositivi associati..."
 T_FORGOTTEN_TITLE="Fatto"
 T_FORGOTTEN_MSG="\nTutti i dispositivi associati sono stati rimossi."
 T_RESCAN="Ripeti scansione"
-T_M_TOGGLE_DRIVER="Cambia Driver (Generico vs Realtek)"
-T_M_AUDIT="Esegui Controllo di Sistema"
-T_M_TEST_CHIME="Riproduci Suono di Prova"
-T_M_READ_AUDIT="Leggi Ultimo Controllo"
-T_M_POWERSHIFT="Power-Shift (Spegni Wi-Fi / Forza BT)"
-T_M_RESTORE_WIFI="Ripristina Wi-Fi (Spegni BT / Wi-Fi ON)"
-T_M_SYSTEM_SETUP="Configurazione di Sistema"
-T_SETUP_TITLE="Configurazione di Sistema"
-T_SETUP_MSG="\nConfigurazione del sistema per prestazioni Bluetooth ottimali...\nCi vorra un momento."
-T_SETUP_DONE_TITLE="Configurazione Completata"
-T_SETUP_DONE_MSG="\nLa configurazione del sistema e completata!\n\nTutte le regole PulseAudio, i demoni in background e le icone UI sono stati installati e attivati."
-T_DRV_ERR="Driver rtk_btusb non trovato! Resto su Generico."
-T_DRV_SW_TITLE="Cambio Driver"
-T_DRV_SW_MSG="\nCambio preferenza a "
-T_DRV_SW_MSG2="...\nRipristino hardware (~10s)..."
-T_DRV_SW_SUCC="Il sistema e ora configurato per:\n"
-T_AUD_TITLE="Controllo Completato"
-T_AUD_MSG="\nControllo salvato.\nUsa 'Leggi Ultimo Controllo' per visualizzare."
-T_READ_ERR="\nNessun file di audit trovato."
+T_M_TOGGLE_DRIVER="Toggle Driver (Generic vs Realtek)"
+T_M_AUDIT="Perform System Audit"
+T_M_TEST_CHIME="Play Test Chime"
+T_M_READ_AUDIT="Read Last Audit (30s Freeze)"
+T_M_POWERSHIFT="Power-Shift (Kill Wi-Fi / Force BT)"
+T_M_RESTORE_WIFI="Restore Wi-Fi (Kill BT / Wi-Fi ON)"
+T_M_SYSTEM_SETUP="System Setup"
+T_SETUP_TITLE="System Setup"
+T_SETUP_MSG="\nConfiguring system for ultimate Bluetooth performance...\nThis will take a moment."
+T_SETUP_DONE_TITLE="Setup Complete"
+T_SETUP_DONE_MSG="\nSystem Setup is complete!\n\nAll PulseAudio rules, background daemons, and UI icons have been installed and activated."
+T_DRV_ERR="rtk_btusb driver not found! Staying on Generic."
+T_DRV_SW_TITLE="Driver Switch"
+T_DRV_SW_MSG="\nSwitching preference to "
+T_DRV_SW_MSG2="...\nResetting hardware (takes ~10s)..."
+T_DRV_SW_SUCC="System is now configured for:\n"
+T_AUD_TITLE="Audit Complete"
+T_AUD_MSG="\nAudit saved to log.\nUse 'Read Last Audit' to view."
+T_READ_ERR="\nNo audit file found."
 T_PWR_TITLE="Power-Shift"
-T_PWR_MSG1="\nDisattivazione Wi-Fi e Forzatura BT..."
-T_PWR_MSG2="\nIl Wi-Fi e ora SPENTO.\nControlla lo Stato e prova la Scansione."
-T_RES_TITLE="Ripristina Wi-Fi"
-T_RES_MSG1="\nDisattivazione BT e Ripristino Wi-Fi..."
-T_RES_MSG2="\nIl Wi-Fi e in fase di ripristino.\nAttendi qualche secondo per la riconnessione."
-T_TST_TITLE="Test Audio"
-T_TST_MSG1="\nInvio di un tono a 440Hz tramite PulseAudio...\nAscolta attentamente le cuffie/altoparlanti."
-T_TST_MSG2="\nTest completato.\n\nHai sentito un bip continuo per qualche secondo?"
+T_PWR_MSG1="\nDisabling Wi-Fi & Forcing BT..."
+T_PWR_MSG2="\nWi-Fi is now OFF.\nCheck Status and try Scanning."
+T_RES_TITLE="Restore Wi-Fi"
+T_RES_MSG1="\nDisabling BT & Restoring Wi-Fi..."
+T_RES_MSG2="\nWi-Fi is being restored.\nGive it a few seconds to reconnect."
+T_TST_TITLE="Audio Test"
+T_TST_MSG1="\nPushing a native 440Hz test tone through PulseAudio...\nListen closely to your headphones/speakers."
+T_TST_MSG2="\nTest complete.\n\nDid you hear a continuous beep for a few seconds?"
+T_M_UPDATE="Check for Updates"
+T_UP_CHK="Checking for updates..."
+T_UP_DL="Downloading latest version from GitHub..."
+T_UP_SUCC="Update complete! The script will now restart."
+T_UP_ERR_INV="Update failed. Downloaded file is invalid. Check repo filename."
+T_UP_ERR_NET="Update failed. Could not reach GitHub."
 
 # --- DEUTSCH (DE) ---
 elif [[ "$SYSTEM_LANG" == *"de"* ]]; then
-T_BACKTITLE="Bluetooth Manager von Jason & djparent "
+T_BACKTITLE="Bluetooth Manager von djparent"
 T_STARTING="Bluetooth Manager wird gestartet ...\nBitte warten."
 T_ERR_TITLE="Fehler"
 T_STOPPING="Bluetooth wird gestoppt..."
@@ -828,38 +889,44 @@ T_FORGETTING_MSG="\nAlle gekoppelten Geraete werden entfernt..."
 T_FORGOTTEN_TITLE="Fertig"
 T_FORGOTTEN_MSG="\nAlle gekoppelten Geraete wurden entfernt."
 T_RESCAN="Erneut suchen"
-T_M_TOGGLE_DRIVER="Treiber umschalten (Generisch vs Realtek)"
-T_M_AUDIT="Systemaudit durchfuehren"
-T_M_TEST_CHIME="Testton abspielen"
-T_M_READ_AUDIT="Letztes Audit lesen"
-T_M_POWERSHIFT="Power-Shift (WLAN aus / BT erzwingen)"
-T_M_RESTORE_WIFI="WLAN wiederherstellen (BT aus / WLAN an)"
-T_M_SYSTEM_SETUP="System-Setup"
-T_SETUP_TITLE="System-Setup"
-T_SETUP_MSG="\nSystem fuer ultimative Bluetooth-Leistung konfigurieren...\nDies dauert einen Moment."
-T_SETUP_DONE_TITLE="Setup Abgeschlossen"
-T_SETUP_DONE_MSG="\nDas System-Setup ist abgeschlossen!\n\nAlle PulseAudio-Regeln, Hintergrund-Daemons und UI-Symbole wurden installiert und aktiviert."
-T_DRV_ERR="rtk_btusb-Treiber nicht gefunden! Bleibe bei Generisch."
-T_DRV_SW_TITLE="Treiberwechsel"
-T_DRV_SW_MSG="\nWechsle Praeferenz zu "
-T_DRV_SW_MSG2="...\nHardware wird zurueckgesetzt (~10s)..."
-T_DRV_SW_SUCC="Das System ist nun konfiguriert fuer:\n"
-T_AUD_TITLE="Audit Abgeschlossen"
-T_AUD_MSG="\nAudit gespeichert.\nVerwenden Sie 'Letztes Audit lesen' zum Anzeigen."
-T_READ_ERR="\nKeine Audit-Datei gefunden."
+T_M_TOGGLE_DRIVER="Toggle Driver (Generic vs Realtek)"
+T_M_AUDIT="Perform System Audit"
+T_M_TEST_CHIME="Play Test Chime"
+T_M_READ_AUDIT="Read Last Audit (30s Freeze)"
+T_M_POWERSHIFT="Power-Shift (Kill Wi-Fi / Force BT)"
+T_M_RESTORE_WIFI="Restore Wi-Fi (Kill BT / Wi-Fi ON)"
+T_M_SYSTEM_SETUP="System Setup"
+T_SETUP_TITLE="System Setup"
+T_SETUP_MSG="\nConfiguring system for ultimate Bluetooth performance...\nThis will take a moment."
+T_SETUP_DONE_TITLE="Setup Complete"
+T_SETUP_DONE_MSG="\nSystem Setup is complete!\n\nAll PulseAudio rules, background daemons, and UI icons have been installed and activated."
+T_DRV_ERR="rtk_btusb driver not found! Staying on Generic."
+T_DRV_SW_TITLE="Driver Switch"
+T_DRV_SW_MSG="\nSwitching preference to "
+T_DRV_SW_MSG2="...\nResetting hardware (takes ~10s)..."
+T_DRV_SW_SUCC="System is now configured for:\n"
+T_AUD_TITLE="Audit Complete"
+T_AUD_MSG="\nAudit saved to log.\nUse 'Read Last Audit' to view."
+T_READ_ERR="\nNo audit file found."
 T_PWR_TITLE="Power-Shift"
-T_PWR_MSG1="\nWLAN wird deaktiviert & BT erzwungen..."
-T_PWR_MSG2="\nWLAN ist nun AUS.\nUeberpruefen Sie den Status und versuchen Sie einen Scan."
-T_RES_TITLE="WLAN wiederherstellen"
-T_RES_MSG1="\nBT wird deaktiviert & WLAN wiederhergestellt..."
-T_RES_MSG2="\nWLAN wird wiederhergestellt.\nBitte warten Sie einige Sekunden."
-T_TST_TITLE="Audio-Test"
-T_TST_MSG1="\nEin 440Hz Testton wird ueber PulseAudio ausgegeben...\nHoeren Sie bei Ihren Kopfhoerern/Lautsprechern genau hin."
-T_TST_MSG2="\nTest abgeschlossen.\n\nHaben Sie ein paar Sekunden lang einen Piepton gehoert?"
+T_PWR_MSG1="\nDisabling Wi-Fi & Forcing BT..."
+T_PWR_MSG2="\nWi-Fi is now OFF.\nCheck Status and try Scanning."
+T_RES_TITLE="Restore Wi-Fi"
+T_RES_MSG1="\nDisabling BT & Restoring Wi-Fi..."
+T_RES_MSG2="\nWi-Fi is being restored.\nGive it a few seconds to reconnect."
+T_TST_TITLE="Audio Test"
+T_TST_MSG1="\nPushing a native 440Hz test tone through PulseAudio...\nListen closely to your headphones/speakers."
+T_TST_MSG2="\nTest complete.\n\nDid you hear a continuous beep for a few seconds?"
+T_M_UPDATE="Check for Updates"
+T_UP_CHK="Checking for updates..."
+T_UP_DL="Downloading latest version from GitHub..."
+T_UP_SUCC="Update complete! The script will now restart."
+T_UP_ERR_INV="Update failed. Downloaded file is invalid. Check repo filename."
+T_UP_ERR_NET="Update failed. Could not reach GitHub."
 
 # --- POLSKI (PL) ---
 elif [[ "$SYSTEM_LANG" == *"pl"* ]]; then
-T_BACKTITLE="Bluetooth Manager przez Jason & djparent "
+T_BACKTITLE="Bluetooth Manager przez djparent"
 T_STARTING="Uruchamianie Bluetooth Manager ...\nProsze czekac."
 T_ERR_TITLE="Blad"
 T_STOPPING="Zatrzymywanie Bluetooth..."
@@ -959,205 +1026,41 @@ T_FORGETTING_MSG="\nUsuwanie wszystkich sparowanych urzadzen..."
 T_FORGOTTEN_TITLE="Gotowe"
 T_FORGOTTEN_MSG="\nWszystkie sparowane urzadzenia zostaly usuniete."
 T_RESCAN="Skanuj ponownie"
-T_M_TOGGLE_DRIVER="Przelacz Sterownik (Generyczny vs Realtek)"
-T_M_AUDIT="Wykonaj Audyt Systemu"
-T_M_TEST_CHIME="Odtworz Dzwiek Testowy"
-T_M_READ_AUDIT="Odczytaj Ostatni Audyt"
-T_M_POWERSHIFT="Power-Shift (Wylacz Wi-Fi / Wymus BT)"
-T_M_RESTORE_WIFI="Przywroc Wi-Fi (Wylacz BT / Wi-Fi WL)"
-T_M_SYSTEM_SETUP="Konfiguracja Systemu"
-T_SETUP_TITLE="Konfiguracja Systemu"
-T_SETUP_MSG="\nKonfiguracja systemu dla optymalnej wydajnosci Bluetooth...\nTo zajmie chwile."
-T_SETUP_DONE_TITLE="Konfiguracja Zakonczona"
-T_SETUP_DONE_MSG="\nKonfiguracja systemu zostala zakonczona!\n\nWszystkie reguly PulseAudio, demony w tle i ikony interfejsu zostaly zainstalowane i aktywowane."
-T_DRV_ERR="Nie znaleziono sterownika rtk_btusb! Pozostawiono Generyczny."
-T_DRV_SW_TITLE="Zmiana Sterownika"
-T_DRV_SW_MSG="\nZmiana preferencji na "
-T_DRV_SW_MSG2="...\nResetowanie sprzetu (~10s)..."
-T_DRV_SW_SUCC="System jest teraz skonfigurowany na:\n"
-T_AUD_TITLE="Audyt Zakonczony"
-T_AUD_MSG="\nAudyt zapisany.\nUzyj 'Odczytaj Ostatni Audyt', aby wyswietlic."
-T_READ_ERR="\nNie znaleziono pliku audytu."
+T_M_TOGGLE_DRIVER="Toggle Driver (Generic vs Realtek)"
+T_M_AUDIT="Perform System Audit"
+T_M_TEST_CHIME="Play Test Chime"
+T_M_READ_AUDIT="Read Last Audit (30s Freeze)"
+T_M_POWERSHIFT="Power-Shift (Kill Wi-Fi / Force BT)"
+T_M_RESTORE_WIFI="Restore Wi-Fi (Kill BT / Wi-Fi ON)"
+T_M_SYSTEM_SETUP="System Setup"
+T_SETUP_TITLE="System Setup"
+T_SETUP_MSG="\nConfiguring system for ultimate Bluetooth performance...\nThis will take a moment."
+T_SETUP_DONE_TITLE="Setup Complete"
+T_SETUP_DONE_MSG="\nSystem Setup is complete!\n\nAll PulseAudio rules, background daemons, and UI icons have been installed and activated."
+T_DRV_ERR="rtk_btusb driver not found! Staying on Generic."
+T_DRV_SW_TITLE="Driver Switch"
+T_DRV_SW_MSG="\nSwitching preference to "
+T_DRV_SW_MSG2="...\nResetting hardware (takes ~10s)..."
+T_DRV_SW_SUCC="System is now configured for:\n"
+T_AUD_TITLE="Audit Complete"
+T_AUD_MSG="\nAudit saved to log.\nUse 'Read Last Audit' to view."
+T_READ_ERR="\nNo audit file found."
 T_PWR_TITLE="Power-Shift"
-T_PWR_MSG1="\nWylaczanie Wi-Fi i wymuszanie BT..."
-T_PWR_MSG2="\nWi-Fi jest teraz WYLACZONE.\nSprawdz Status i sprobuj Skanowac."
-T_RES_TITLE="Przywroc Wi-Fi"
-T_RES_MSG1="\nWylaczanie BT i przywracanie Wi-Fi..."
-T_RES_MSG2="\nWi-Fi jest przywracane.\nPoczekaj kilka sekund na ponowne polaczenie."
-T_TST_TITLE="Test Audio"
-T_TST_MSG1="\nWysylanie tonu 440Hz przez PulseAudio...\nPosluchaj uwaznie w sluchawkach/glosnikach."
-T_TST_MSG2="\nTest zakonczony.\n\nCzy slyszales ciagly dzwiek przez kilka sekund?"
+T_PWR_MSG1="\nDisabling Wi-Fi & Forcing BT..."
+T_PWR_MSG2="\nWi-Fi is now OFF.\nCheck Status and try Scanning."
+T_RES_TITLE="Restore Wi-Fi"
+T_RES_MSG1="\nDisabling BT & Restoring Wi-Fi..."
+T_RES_MSG2="\nWi-Fi is being restored.\nGive it a few seconds to reconnect."
+T_TST_TITLE="Audio Test"
+T_TST_MSG1="\nPushing a native 440Hz test tone through PulseAudio...\nListen closely to your headphones/speakers."
+T_TST_MSG2="\nTest complete.\n\nDid you hear a continuous beep for a few seconds?"
+T_M_UPDATE="Check for Updates"
+T_UP_CHK="Checking for updates..."
+T_UP_DL="Downloading latest version from GitHub..."
+T_UP_SUCC="Update complete! The script will now restart."
+T_UP_ERR_INV="Update failed. Downloaded file is invalid. Check repo filename."
+T_UP_ERR_NET="Update failed. Could not reach GitHub."
 fi
-
-# -------------------------------------------------------
-# System Setup (Run Once Installer)
-# -------------------------------------------------------
-SystemSetup() {
-    dialog --title "$T_SETUP_TITLE" --infobox "$T_SETUP_MSG" 6 55 > "$CURR_TTY"
-
-    # 1. PulseAudio Configuration Fixes
-    sudo sed -i '/load-module module-suspend-on-idle/d' /etc/pulse/default.pa
-    sudo sed -i 's/load-module module-udev-detect.*/load-module module-udev-detect tsched=0/' /etc/pulse/default.pa
-    sudo sed -i 's/load-module module-alsa-sink.*/load-module module-alsa-sink device=default sink_name=internal_speaker tsched=0/' /etc/pulse/default.pa
-
-    # 2. PulseAudio Service Fix (Dictator Mode)
-    cat << 'EOF' | sudo tee /etc/systemd/system/pulseaudio.service > /dev/null
-[Unit]
-Description=PulseAudio Sound Daemon
-[Service]
-Type=simple
-User=ark
-Environment=XDG_RUNTIME_DIR=/run/user/1000
-Environment=PULSE_RUNTIME_PATH=/run/user/1000/pulse
-ExecStart=/usr/bin/pulseaudio -n -F /etc/pulse/default.pa --daemonize=no --exit-idle-time=-1 --no-cpu-limit --disable-shm=false
-Restart=always
-RestartSec=2
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    # 3. Create the BT Watcher Daemon Script
-    cat << 'EOF' | sudo tee /usr/local/bin/bt-watcher.sh > /dev/null
-#!/bin/bash
-PA="sudo -u ark env XDG_RUNTIME_DIR=/run/user/1000 PULSE_SERVER=unix:/run/user/1000/pulse/native pactl"
-
-UpdateIcon() {
-    local state=$1
-    for DIR in "/roms/themes/theme-EPIC-CODY/_art" "/roms2/themes/theme-EPIC-CODY/_art"; do
-        if [ -d "$DIR" ] && [ -f "$DIR/bt_${state}.svg" ]; then
-            cp -f "$DIR/bt_${state}.svg" "$DIR/bt.svg"
-        fi
-    done
-}
-
-RouteAudio() {
-    sleep 2 
-    BT_SINK=$($PA list short sinks 2>/dev/null | grep "bluez_sink" | awk '{print $2}')
-    if [ -n "$BT_SINK" ]; then
-        CURRENT_DEFAULT=$($PA info 2>/dev/null | grep "Default Sink:" | awk '{print $3}')
-        if [ "$CURRENT_DEFAULT" == "$BT_SINK" ]; then return 0; fi
-
-        INTERNAL_SINK=$($PA list short sinks 2>/dev/null | grep -v bluez | grep -v auto_null | awk '{print $2}' | head -n1)
-        CURRENT_VOL="75%"
-        if [ -n "$INTERNAL_SINK" ]; then
-            PARSED_VOL=$($PA list sinks | grep -A 10 "Name: $INTERNAL_SINK" | grep "Volume:" | head -n 1 | awk '{print $5}')
-            if [ -n "$PARSED_VOL" ]; then CURRENT_VOL="$PARSED_VOL"; fi
-        fi
-
-        $PA set-default-sink "$BT_SINK"
-        $PA set-sink-mute "$BT_SINK" 0
-        $PA set-sink-volume "$BT_SINK" "$CURRENT_VOL"
-        for stream in $($PA list short sink-inputs 2>/dev/null | awk '{print $1}'); do
-            $PA move-sink-input "$stream" "$BT_SINK"
-        done
-
-        MOD_SILENCE=$($PA load-module module-sine frequency=20)
-        sleep 1.5
-        $PA unload-module $MOD_SILENCE >/dev/null 2>&1
-        
-        MOD_1=$($PA load-module module-sine frequency=523)
-        sleep 0.12
-        $PA unload-module $MOD_1 >/dev/null 2>&1
-        MOD_2=$($PA load-module module-sine frequency=659)
-        sleep 0.12
-        $PA unload-module $MOD_2 >/dev/null 2>&1
-        MOD_3=$($PA load-module module-sine frequency=784)
-        sleep 0.12
-        $PA unload-module $MOD_3 >/dev/null 2>&1
-        MOD_4=$($PA load-module module-sine frequency=1047)
-        sleep 0.25
-        $PA unload-module $MOD_4 >/dev/null 2>&1
-
-        UpdateIcon "on"
-    fi
-}
-
-(
-    udevadm monitor --kernel --subsystem-match=bluetooth | while read -r line; do
-        if echo "$line" | grep -q "add"; then
-            sleep 4 
-            bluetoothctl power on >/dev/null 2>&1
-            bluetoothctl devices Trusted | cut -d ' ' -f 2 | while read mac; do
-                bluetoothctl connect "$mac" >/dev/null 2>&1
-            done
-        fi
-    done
-) &
-
-sleep 5 
-BT_SINK=$($PA list short sinks 2>/dev/null | grep "bluez_sink" | awk '{print $2}')
-if [ -n "$BT_SINK" ]; then RouteAudio; else UpdateIcon "off"; fi
-
-$PA subscribe | while read -r line; do
-    if echo "$line" | grep -q "Event 'new' on sink "; then
-        RouteAudio
-    elif echo "$line" | grep -q "Event 'remove' on sink "; then
-        BT_SINK=$($PA list short sinks 2>/dev/null | grep "bluez_sink" | awk '{print $2}')
-        if [ -z "$BT_SINK" ]; then UpdateIcon "off"; fi
-    fi
-done
-EOF
-    sudo chmod +x /usr/local/bin/bt-watcher.sh
-
-    # 4. Create Watcher Service
-    cat << 'EOF' | sudo tee /etc/systemd/system/bt-watcher.service > /dev/null
-[Unit]
-Description=Bluetooth Audio and UI Watcher
-After=pulseaudio.service
-[Service]
-Type=simple
-User=root
-ExecStart=/usr/local/bin/bt-watcher.sh
-Restart=always
-RestartSec=3
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    # 5. Create BT Icon Reset Service
-    cat << 'EOF' | sudo tee /etc/systemd/system/bt-icon-reset.service > /dev/null
-[Unit]
-Description=Reset BT Icon Before UI Loads
-Before=emulationstation.service
-[Service]
-Type=oneshot
-ExecStart=/bin/bash -c 'for DIR in "/roms/themes/theme-EPIC-CODY/_art" "/roms2/themes/theme-EPIC-CODY/_art"; do [ -d "$DIR" ] && [ -f "$DIR/bt_off.svg" ] && cp -f "$DIR/bt_off.svg" "$DIR/bt.svg"; done'
-RemainAfterExit=yes
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    # 6. Generate UI Icons
-    for DIR in "/roms/themes/theme-EPIC-CODY/_art" "/roms2/themes/theme-EPIC-CODY/_art"; do
-        if [ -d "$DIR" ]; then
-            cat > "$DIR/bt_on.svg" << 'EOF'
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" stroke="#007bff" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-  <polyline points="10.5 10.5 25.5 25.5 18 33 18 3 25.5 10.5 10.5 25.5"/>
-</svg>
-EOF
-            cat > "$DIR/bt_off.svg" << 'EOF'
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" stroke="#6c757d" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-  <polyline points="10.5 10.5 25.5 25.5 18 33 18 3 25.5 10.5 10.5 25.5"/>
-  <line x1="6" y1="6" x2="30" y2="30" stroke="#dc3545" />
-</svg>
-EOF
-            cp "$DIR/bt_off.svg" "$DIR/bt.svg"
-        fi
-    done
-
-    # 7. Reload and Enable Services
-    sudo systemctl daemon-reload
-    
-    sudo systemctl enable pulseaudio.service
-    sudo systemctl restart pulseaudio.service
-    
-    sudo systemctl enable bt-watcher.service
-    sudo systemctl restart bt-watcher.service
-    
-    sudo systemctl enable bt-icon-reset.service
-
-    dialog --title "$T_SETUP_DONE_TITLE" --msgbox "$T_SETUP_DONE_MSG" 10 55 > "$CURR_TTY"
-}
 
 # -------------------------------------------------------
 # Start gamepad input
@@ -1183,6 +1086,12 @@ StopGPTKeyb() {
 }
 
 # -------------------------------------------------------
+# Font Selection
+# -------------------------------------------------------
+ORIGINAL_FONT=$(setfont -v 2>&1 | grep -o '/.*\.psf.*')
+setfont /usr/share/consolefonts/Lat7-TerminusBold22x11.psf.gz
+
+# -------------------------------------------------------
 # Display Management
 # -------------------------------------------------------
 printf "\e[?25l" > "$CURR_TTY"
@@ -1192,16 +1101,6 @@ pgrep -f osk.py | xargs kill -9
 printf "\033[H\033[2J" > "$CURR_TTY"
 printf "$T_STARTING" > "$CURR_TTY"
 sleep 0.1
-
-# -------------------------------------------------------
-# Font Selection
-# -------------------------------------------------------
-ORIGINAL_FONT=$(setfont -v 2>&1 | grep -o '/.*\.psf.*')
-if [[ ! -e "/dev/input/by-path/platform-odroidgo2-joypad-event-joystick" ]]; then
-    setfont /usr/share/consolefonts/Lat7-TerminusBold22x11.psf.gz
-else
-    setfont /usr/share/consolefonts/Lat7-Terminus16.psf.gz
-fi
 
 # -------------------------------------------------------
 # Bluetooth Status
@@ -1228,7 +1127,7 @@ GetConnectedName() {
 }
 
 # -------------------------------------------------------
-# Route ALSA through PulseAudio (for BT audio)
+# Route ALSA through PulseAudio (for Bluetooth audio)
 # -------------------------------------------------------
 SetAsoundPulse() {
     cat <<ASOUND > "$ASOUNDRC"
@@ -1620,8 +1519,9 @@ EOF
     sudo chmod 755 /etc/bluetooth
     cat <<EOF | sudo tee /etc/bluetooth/main.conf > /dev/null
 [General]
+ControllerMode = dual
 JustWorksRepairing = always
-AutoEnable = true
+AutoEnable = false
 FastConnectable = true
 Experimental = true
 ReconnectAttempts = 7
@@ -1634,13 +1534,12 @@ EOF
     for conf in "${RA_CONFIGS[@]}"; do
         if [ -f "$conf" ]; then
             if grep -q "^audio_driver =" "$conf"; then
-                sudo sed -i 's/^audio_driver = .*/audio_driver = "pulseaudio"/' "$conf"
+                sudo sed -i 's/^audio_driver = .*/audio_driver = "sdl2"/' "$conf"
             else
         echo 'audio_driver = "sdl2"' | sudo tee -a "$conf" > /dev/null
             fi
         fi
     done
-    echo "PULSE_SERVER=unix:/run/user/1000/pulse/native" | sudo tee -a /etc/environment
     
     FixVolumeScript
 
@@ -1747,7 +1646,7 @@ EnsurePermissions() {
 # -------------------------------------------------------
 GetInternalSink() {
     local sink
-    sink=$(sudo -u ark pactl --server=unix:/run/user/${ARK_UID}/pulse/native list short sinks 2>/dev/null | grep -v bluez | grep -v auto_null | awk '{print $2}' | head -n1)
+    sink=$(pactl --server=unix:${PULSE_SOCKET} list short sinks 2>/dev/null | grep -v bluez | grep -v auto_null | awk '{print $2}' | head -n1)
     echo "${sink:-internal_speaker}"
 }
 
@@ -1755,174 +1654,108 @@ GetInternalSink() {
 # Set Runtime,Start PulseAudio with Server Check
 # -------------------------------------------------------
 CheckPulse() {
-    local SCRIPT="/tmp/bt_checkpulse.sh"
-    cat << 'EOF' > $SCRIPT
-#!/bin/bash
-PA="pactl --server=unix:/run/user/$(id -u ark)/pulse/native"
+    export XDG_RUNTIME_DIR=/run/user/${ARK_UID}
+    export PULSE_SERVER=unix:$XDG_RUNTIME_DIR/pulse/native
+    export DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus
 
-# Check if the Bluetooth translation modules are loaded. If not, load them!
-$PA list short modules 2>/dev/null | grep -q module-bluetooth-policy || $PA load-module module-bluetooth-policy >/dev/null 2>&1
-$PA list short modules 2>/dev/null | grep -q module-bluetooth-discover || $PA load-module module-bluetooth-discover >/dev/null 2>&1
-EOF
+    if ! sudo -u ark XDG_RUNTIME_DIR=/run/user/${ARK_UID} pactl info >/dev/null 2>&1; then
+        sudo -u ark XDG_RUNTIME_DIR=/run/user/${ARK_UID} pulseaudio --start
+    fi
     
-    chmod +x $SCRIPT
-    sudo -u ark $SCRIPT
+    sleep 0.1
+    
+    local PA_CMD="pactl --server=unix:$PULSE_SOCKET"
+    $PA_CMD list short modules 2>/dev/null | grep -q module-bluetooth-policy || \
+        $PA_CMD load-module module-bluetooth-policy > /dev/null 2>&1
+    $PA_CMD list short modules 2>/dev/null | grep -q module-bluetooth-discover || \
+        $PA_CMD load-module module-bluetooth-discover > /dev/null 2>&1
 }
 
 # -------------------------------------------------------
 # Audio patch
 # -------------------------------------------------------
 ApplyAudioFix() {
-    local mac=$1
-    local SCRIPT="/tmp/bt_route.sh"
+    local PA_CMD="pactl --server=unix:$PULSE_SOCKET"
     
-    cat << 'EOF' > $SCRIPT
-#!/bin/bash
-LOG_FILE="/home/ark/bt_audit.log"
-PA="pactl --server=unix:/run/user/$(id -u ark)/pulse/native"
-
-echo "--- Audio Fix Started ---" >> $LOG_FILE
-
-# 1. Wait for the Bluetooth Card
-CARD=""
-for i in {1..15}; do
-    CARD=$($PA list short cards 2>/dev/null | grep "bluez_card" | awk '{print $2}')
-    if [ -n "$CARD" ]; then 
-        echo "Found card after $i seconds: $CARD" >> $LOG_FILE
-        break
-    fi
-    sleep 1
-done
-
-if [ -z "$CARD" ]; then
-    echo "FAILURE: bluez_card never appeared." >> $LOG_FILE
-    exit 1
-fi
-
-# 2. Force A2DP Profile
-$PA set-card-profile "$CARD" a2dp_sink >> $LOG_FILE 2>&1
-
-# 3. Wait for the Bluetooth Sink to actually be created
-BT_SINK=""
-for i in {1..15}; do
-    BT_SINK=$($PA list short sinks 2>/dev/null | grep "bluez_sink" | awk '{print $2}')
-    if [ -n "$BT_SINK" ]; then 
-        echo "Found sink after $i seconds: $BT_SINK" >> $LOG_FILE
-        break
-    fi
-    sleep 1
-done
-
-if [ -n "$BT_SINK" ]; then
-    
-    # 4. Capture Current Internal Volume
-    INTERNAL_SINK=$($PA list short sinks 2>/dev/null | grep -v bluez | grep -v auto_null | awk '{print $2}' | head -n1)
-    CURRENT_VOL="75%" # Fallback
-    if [ -n "$INTERNAL_SINK" ]; then
-        PARSED_VOL=$($PA list sinks | grep -A 10 "Name: $INTERNAL_SINK" | grep "Volume:" | head -n 1 | awk '{print $5}')
-        if [ -n "$PARSED_VOL" ]; then CURRENT_VOL="$PARSED_VOL"; fi
-    fi
-
-    # 5. Route, Unmute, and set Volume
-    $PA set-default-sink "$BT_SINK" >> $LOG_FILE 2>&1
-    $PA set-sink-mute "$BT_SINK" 0 >> $LOG_FILE 2>&1
-    $PA set-sink-volume "$BT_SINK" "$CURRENT_VOL" >> $LOG_FILE 2>&1
-    
-    # 6. Move all existing audio to the buds
-    for stream in $($PA list short sink-inputs 2>/dev/null | awk '{print $1}'); do
-        $PA move-sink-input "$stream" "$BT_SINK" >> $LOG_FILE 2>&1
+    # --- Only wait for bluez_card if a device is actually connected ---
+    local CARD=""
+    local attempts=0
+    while [ -z "$CARD" ] && [ $attempts -lt 5 ]; do
+        sleep 0.5
+        CARD=$($PA_CMD list short cards 2>/dev/null | grep "bluez_card" | awk '{print $2}')
+        attempts=$((attempts + 1))
     done
+    [ -n "$CARD" ] && $PA_CMD set-card-profile "$CARD" a2dp_sink >/dev/null 2>&1
     
-    # --- MULTIPOINT FOCUS STEALER ---
-    # Play a 1.5-second, 20Hz (inaudible) stream to force the headphones to drop the phone
-    MOD_ID=$($PA load-module module-sine frequency=20)
-    sleep 1.5
-    $PA unload-module $MOD_ID >/dev/null 2>&1
+    local BT_SINK=$($PA_CMD list short sinks 2>/dev/null | grep "bluez_sink" | awk '{print $2}')
     
-    echo "SUCCESS: Audio routed to $BT_SINK at $CURRENT_VOL" >> $LOG_FILE
-    exit 0
-else
-    echo "FAILURE: bluez_sink never appeared." >> $LOG_FILE
-    exit 1
-fi
-EOF
-    
-    chmod +x $SCRIPT
-    
-    # Run the script as the ark user. If it succeeds (exit 0), turn the icon blue!
-    if sudo -u ark $SCRIPT; then
-        UpdateBTIcon "on"
+    if [ -n "$BT_SINK" ]; then
+        $PA_CMD set-default-sink "$BT_SINK" >/dev/null 2>&1
+
+        local CARD=$($PA_CMD list short cards 2>/dev/null | grep "bluez_card" | awk '{print $2}')
+        if [ -n "$CARD" ]; then
+            $PA_CMD set-card-profile "$CARD" a2dp_sink >/dev/null 2>&1
+        fi
+
+        $PA_CMD set-sink-volume "$BT_SINK" 60% >/dev/null 2>&1
+
+        # Route ALSA through PulseAudio so SDL2/RetroArch audio goes to BT
+        SetAsoundPulse
     else
-        UpdateBTIcon "off"
+        $PA_CMD set-default-sink $(GetInternalSink) >/dev/null 2>&1
+        $PA_CMD set-sink-mute $(GetInternalSink) 0 >/dev/null 2>&1
+        SetAsoundDirect
     fi
+
+    # -- Move all current audio streams to the new output ---
+    local DEFAULT_SINK=$($PA_CMD info 2>/dev/null | grep "Default Sink" | awk '{print $3}')
+    for stream in $($PA_CMD list short sink-inputs 2>/dev/null | awk '{print $1}'); do
+        $PA_CMD move-sink-input "$stream" "$DEFAULT_SINK" >/dev/null 2>&1
+    done
 }
 
 # -------------------------------------------------------
 # Route Audio Through Speakers
 # -------------------------------------------------------
 ForceInternalAudio() {
-    local SCRIPT="/tmp/bt_internal.sh"
-    cat << 'EOF' > $SCRIPT
-#!/bin/bash
-PA="pactl --server=unix:/run/user/$(id -u ark)/pulse/native"
+    local PA_CMD="pactl --server=unix:$PULSE_SOCKET"
 
-SINK=$($PA list short sinks 2>/dev/null | grep -v bluez | grep -v auto_null | awk '{print $2}' | head -n1)
-if [ -z "$SINK" ]; then SINK="internal_speaker"; fi
+    $PA_CMD set-default-sink $(GetInternalSink) >/dev/null 2>&1
+    $PA_CMD set-sink-mute $(GetInternalSink) 0 >/dev/null 2>&1
+    $PA_CMD set-sink-volume $(GetInternalSink) 65% >/dev/null 2>&1
 
-$PA set-default-sink $SINK >/dev/null 2>&1
-$PA set-sink-mute $SINK 0 >/dev/null 2>&1
-$PA set-sink-volume $SINK 65% >/dev/null 2>&1
-
-for stream in $($PA list short sink-inputs 2>/dev/null | awk '{print $1}'); do
-    $PA move-sink-input "$stream" $SINK >/dev/null 2>&1
-done
-EOF
-    
-    chmod +x $SCRIPT
-    sudo -u ark $SCRIPT
+    # --- Restore ALSA direct routing ---
     SetAsoundDirect
-    UpdateBTIcon "off"
+
+    # --- The current audio is being moved to the speaker ---
+    for stream in $($PA_CMD list short sink-inputs 2>/dev/null | awk '{print $1}'); do
+        $PA_CMD move-sink-input "$stream" $(GetInternalSink) >/dev/null 2>&1
+    done
 }
 
 # -------------------------------------------------------
 # Enable Bluetooth
 # -------------------------------------------------------
 EnableBT() {
-    # 1. Kill everything using the radio
-    systemctl stop bluetooth > /dev/null 2>&1
-    sudo modprobe -r rtk_btusb btusb btrtl 2>/dev/null
-    
-    # 2. Hard USB Reset
-    echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/unbind > /dev/null 2>&1
-    sleep 2
-    
-    # Power settings to keep the chip from "sleeping" during handshake
-    echo "on" | sudo tee /sys/bus/usb/devices/1-1/power/control 2>/dev/null
-    echo "-1" | sudo tee /sys/bus/usb/devices/1-1/power/autosuspend 2>/dev/null
-    
-    echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/bind > /dev/null 2>&1
-    
-    # CRITICAL: This sleep allows the kernel to "see" the USB device 
-    # before we hammer it with driver requests.
-    sleep 6 
-    
-    # 3. Load Driver
-    if [[ "$USE_REALTEK" == "true" ]]; then
-        sudo modprobe rtk_btusb
-    else
-        sudo modprobe btusb
-    fi
-    
-    # 4. Final initialization
     rfkill unblock bluetooth > /dev/null 2>&1
-    systemctl restart bluetooth > /dev/null 2>&1
-    sleep 2
+    systemctl start bluetooth > /dev/null 2>&1 &
+    bluetoothctl power on > /dev/null 2>&1
     
     (
-        bluetoothctl power on > /dev/null 2>&1
-        hciconfig hci0 class 0x000104 2>/dev/null
-        CheckPulse
-        ApplyAudioFix
+    CheckPulse
+    sleep 1
+    bluetoothctl devices | awk '{print $2}' | while read -r mac; do
+        if bluetoothctl info "$mac" | grep -q "Paired: yes"; then
+            bluetoothctl connect "$mac" >/dev/null 2>&1 &
+            sleep 2
+            
+            if ! bluetoothctl info "$mac" | grep -q "Connected: yes"; then
+                bluetoothctl connect "$mac" >/dev/null 2>&1 &
+            fi
+        fi
+    done
+    sleep 2
+    ApplyAudioFix
     ) &
 }
 
@@ -1942,40 +1775,6 @@ ToggleBT() {
 }
 
 # -------------------------------------------------------
-# Toggle between Generic (btusb) and Realtek (rtk_btusb)
-# -------------------------------------------------------
-ToggleDriver() {
-    # Determine the switch
-    if [[ "$USE_REALTEK" == "true" ]]; then
-        USE_REALTEK="false"
-        local TARGET="Generic (btusb)"
-    else
-        USE_REALTEK="true"
-        local TARGET="Realtek (rtk_btusb)"
-    fi
-
-    # Check if the driver actually exists
-    if [[ "$USE_REALTEK" == "true" ]] && ! modinfo rtk_btusb >/dev/null 2>&1; then
-        dialog --title "$T_ERR_TITLE" --msgbox "$T_DRV_ERR" 6 45 > "$CURR_TTY"
-        USE_REALTEK="false"
-        return
-    fi
-
-    # Use a gauge or a static infobox that doesn't clear immediately
-    dialog --backtitle "$T_BACKTITLE" --title "$T_DRV_SW_TITLE" \
-           --infobox "${T_DRV_SW_MSG}${TARGET}${T_DRV_SW_MSG2}" 6 45 > "$CURR_TTY"
-
-    # Call EnableBT
-    EnableBT
-    
-    # Add a small manual wait to let the background processes settle 
-    # before popping the "Success" box
-    sleep 3
-
-    dialog --title "$T_SUCCESS" --msgbox "${T_DRV_SW_SUCC}${TARGET}" 7 45 > "$CURR_TTY"
-}
-
-# -------------------------------------------------------
 # Auto-enable Bluetooth if not already on
 # -------------------------------------------------------
 AutoEnableBT() {
@@ -1983,82 +1782,93 @@ AutoEnableBT() {
         EnableBT
     fi
  }
-
+ 
 # -------------------------------------------------------
-# Update BT Icon UI
-# -------------------------------------------------------
-UpdateBTIcon() {
-    local state=$1
-    for DIR in "/roms/themes/theme-EPIC-CODY/_art" "/roms2/themes/theme-EPIC-CODY/_art"; do
-        if [ -f "$DIR/bt_${state}.svg" ]; then
-            cp -f "$DIR/bt_${state}.svg" "$DIR/bt.svg"
-        fi
-    done
-}
-
-# -------------------------------------------------------
-# Scan and Connect (Full Enhanced Version)
+# Scan and Connect
 # -------------------------------------------------------
 ScanAndConnect() {
     (
     AutoEnableBT
     ) &
     if ! GetPowerStatus; then
-        dialog --backtitle "$T_BACKTITLE" --title "$T_ACTION" --infobox "\n  $T_POWERING" 5 35 > "$CURR_TTY"
-        AutoEnableBT
+        dialog --backtitle "$T_BACKTITLE" --title "$T_ERR_TITLE" --msgbox "\n $T_BT_DISABLED" 8 30 > "$CURR_TTY"
+        return
     fi
   
     rm -f /tmp/bt_scan_results.txt
-    local LOG_FILE="/home/ark/bt_audit.log"
  
     (
     echo "0"; echo "XXX"; echo "$T_POWERING"; echo "XXX"
     
-    # Force Controller Identity and Reset Filters
+    # Force Controller Identity
     hciconfig hci0 class 0x000104 > /dev/null 2>&1
     bluetoothctl power on > /dev/null 2>&1
+    bluetoothctl agent on > /dev/null 2>&1
+    bluetoothctl default-agent > /dev/null 2>&1
     bluetoothctl pairable on > /dev/null 2>&1
     bluetoothctl discoverable on > /dev/null 2>&1
-    bluetoothctl set-scan-filter transport auto > /dev/null 2>&1
     
-    SCAN_TIME=20
-    echo "--- Raw Scan Started $(date) ---" >> "$LOG_FILE"
+    # THE FIX: Clear all filters so the TP-Link can scan Dual-Mode naturally
+    bluetoothctl set-scan-filter clear > /dev/null 2>&1
     
-    bluetoothctl --timeout $SCAN_TIME scan on | tee -a "$LOG_FILE" > /tmp/bt_scan_results.txt 2>&1 &
+    SCAN_TIME=8
+    bluetoothctl --timeout $SCAN_TIME scan on > /tmp/bt_scan_results.txt 2>&1 &
     SCAN_PID=$!
     
     for ((i=0; i<=SCAN_TIME*10; i++)); do
         PERCENT=$(( i * 100 / (SCAN_TIME * 10) ))
-        if [ $i -lt 50 ]; then MSG="$T_SCAN_PROCESS";
-        elif [ $i -lt 120 ]; then MSG="Scanning Dual-Mode (Classic + LE)...";
-        elif [ $i -lt 180 ]; then MSG="Waiting for Pixel Buds/Keyboard...";
+        if [ $i -lt 30 ]; then MSG="$T_SCAN_INIT"; 
+        elif [ $i -lt 80 ]; then MSG="$T_SCAN_PROCESS"; 
         else MSG="$T_SCAN_RESOLV"; fi
         
-        echo "$PERCENT"; echo "XXX"; echo "$MSG"; echo "XXX"
+        echo "$PERCENT"
+        echo "XXX"; echo "$MSG"; echo "XXX"
         sleep 0.1
     done
-    
     wait $SCAN_PID
     bluetoothctl scan off > /dev/null 2>&1
-    echo "--- Raw Scan Ended ---" >> "$LOG_FILE"
     echo "100"
     ) | dialog --backtitle "$T_BACKTITLE" --title "$T_SCAN_TITLE" --gauge "$T_SCAN_START" 6 45 0 > "$CURR_TTY"
 
     bluetoothctl devices > /tmp/bt_devices_list.txt
+    
     unset coptions
+    unset mac_list
+    local index=1
+    
     while read -r line; do
         if [[ "$line" == *"Device"* ]]; then
             local mac=$(echo "$line" | awk '{print $2}')
+            
+            # Skip already paired devices
             if bluetoothctl info "$mac" 2>/dev/null | grep -q "Paired: yes"; then continue; fi
+            
+            # Extract the default name and format the dashed placeholder
             local name=$(echo "$line" | cut -d ' ' -f 3- | xargs)
-            [ -z "$name" ] && name="$T_UNKNOWN"
-            coptions+=("$mac" "$name")
+            local dashed_mac="${mac//:/-}"
+            
+            # The Log Scraper (Try to find a name if it's missing)
+            if [[ "$name" == "$dashed_mac" ]] || [[ -z "$name" ]]; then
+                local log_name=$(grep "$mac" /tmp/bt_scan_results.txt | grep "Name:" | tail -n 1 | sed -n 's/.*Name: //p' | xargs)
+                if [ -n "$log_name" ]; then
+                    name="$log_name"
+                fi
+            fi
+            
+            # THE FIX: Do NOT skip Unknown devices! Just label them.
+            if [[ "$name" == "$dashed_mac" ]] || [[ -z "$name" ]]; then
+                name="$T_UNKNOWN"
+            fi
+            
+            # Store MAC in the background array, and feed the clean UI string to the menu
+            mac_list[$index]="$mac"
+            coptions+=("$index" "$name ($mac)")
+            index=$((index + 1))
         fi
     done < /tmp/bt_devices_list.txt
 
     if [ ${#coptions[@]} -eq 0 ]; then
-        dialog --backtitle "$T_BACKTITLE" --title "$T_INFO" \
-        --msgbox "\nNo devices found.\nCheck /home/ark/bt_audit.log for raw data." 8 45 > "$CURR_TTY"
+        dialog --backtitle "$T_BACKTITLE" --title "$T_INFO" --msgbox "\n $T_NO_DEVICE" 8 40 > "$CURR_TTY"
         return
     fi
 
@@ -2069,7 +1879,8 @@ ScanAndConnect() {
         
         local exit_code=$?
         if [ $exit_code -eq 0 ]; then
-            ConnectProcess "$cselection"
+            # Retrieve the actual MAC address from our background array
+            ConnectProcess "${mac_list[$cselection]}"
             return
         elif [ $exit_code -eq 3 ]; then
             ScanAndConnect
@@ -2078,6 +1889,7 @@ ScanAndConnect() {
             return
         fi
     done
+
 }
 
 # -------------------------------------------------------
@@ -2101,7 +1913,7 @@ is_connected_stable() {
 }
 
 # -------------------------------------------------------
-# Connection
+# Connection (With PTY Ghost Terminal for BLE Keyboards)
 # -------------------------------------------------------
 ConnectProcess() {
     CheckPulse
@@ -2110,53 +1922,107 @@ ConnectProcess() {
     local mac="$1"
     local name=$(bluetoothctl info "$mac" | sed 's/\x1b\[[0-9;]*m//g' | sed -n 's/.*Alias: //p' | xargs)
     [ -z "$name" ] && name="$T_DEV_DEFAULT"
-    local icon=$(bluetoothctl info "$mac" | grep "Icon:" | awk '{print $2}')
-    
+
+    # Clear previous pairing logs
+    rm -f /tmp/bt_pair.log
+
     (
-    current_p=0
-    smooth_bar() {
-      local target=$1
-      local msg=$2
-      while [ $current_p -lt $target ]; do
-        current_p=$((current_p + 1))
-        echo "$current_p"; echo "XXX"; echo "$msg"; echo "XXX"
-        sleep 0.04
-      done
-    }
+    echo "10"; echo "XXX"; echo "$T_PROCESS ..."; echo "XXX"
 
-    # --- Trust and Pairing ---
-    smooth_bar 25 "$T_PROCESS ..."
-    bluetoothctl trust "$mac" >/dev/null 2>&1
+    # --- Pairing (With PTY Ghost Terminal) ---
     if ! bluetoothctl info "$mac" | grep -q "Paired: yes"; then
-        smooth_bar 50 "$T_PAIRING ..."
-        bluetoothctl pair "$mac" >/dev/null 2>&1
-    else
-        smooth_bar 50 "$T_PROCESS ..."
+
+        # Launch bluetoothctl inside a Pseudo-Terminal (PTY)
+        (
+            sleep 1 # Wait for DBus to hook in
+            echo "agent off"
+            sleep 1 # CRITICAL: Give BlueZ time to unregister
+            echo "agent KeyboardDisplay"
+            sleep 1 # CRITICAL: Give BlueZ time to register the new agent
+            echo "default-agent"
+            sleep 1 # CRITICAL: Ensure it is set as default
+            echo "pair $mac" 
+            sleep 60 # Keep the PTY open so you have time to type the PIN
+            echo "quit"
+        ) | script -q -c "bluetoothctl" /tmp/bt_pair.log >/dev/null 2>&1 &
+        SCRIPT_PID=$!
+
+        TIMEOUT=60
+        ELAPSED=0
+
+        # Live Log Scraper Loop
+        while kill -0 $SCRIPT_PID 2>/dev/null; do
+            if [ $ELAPSED -ge $TIMEOUT ]; then
+                break
+            fi
+
+            # Break early if pairing completes or fails
+            if grep -q -iE "(Pairing successful)" /tmp/bt_pair.log; then
+                break
+            fi
+            if grep -q -iE "(Failed to pair)" /tmp/bt_pair.log; then
+                break
+            fi
+
+            # Extract the 6-digit PIN code
+            PIN=$(grep -a -iE "(Passkey|PIN code)" /tmp/bt_pair.log | grep -oE "[0-9]{6}" | tail -n1)
+
+            if [ -n "$PIN" ]; then
+                # Inject it directly into the loading bar!
+                echo "50"; echo "XXX"; echo "KEYBOARD PIN: $PIN (Type & press ENTER)"; echo "XXX"
+            else
+                echo "30"; echo "XXX"; echo "$T_PAIRING ..."; echo "XXX"
+            fi
+
+            sleep 1
+            ELAPSED=$((ELAPSED + 1))
+        done
+
+        # Clean up the ghost terminal AND assassinate any zombie bluetoothctl processes
+        kill -9 $SCRIPT_PID 2>/dev/null
+        pkill -9 -x bluetoothctl 2>/dev/null
+
+        # Restart a fresh bluetoothctl instance just to turn off the scan cleanly
+        bluetoothctl scan off >/dev/null 2>&1
     fi
+
+    # --- Trust and Connect ---
+    echo "70"; echo "XXX"; echo "Finalizing pairing..."; echo "XXX"
+    bluetoothctl trust "$mac" >/dev/null 2>&1
     sleep 0.5
 
-    # --- Connection ---
-    smooth_bar 75 "$T_CONNECTING_TO $name ..."
+    echo "80"; echo "XXX"; echo "$T_CONNECTING_TO $name ..."; echo "XXX"
     bluetoothctl connect "$mac" >/dev/null 2>&1
-    sleep 0.5
+    sleep 3
+
+    # THE FIX: Check icon AFTER connecting so BlueZ has actually resolved the device type!
+    local icon=$(bluetoothctl info "$mac" | grep "Icon:" | awk '{print $2}')
+
     if [[ "$icon" == audio* ]]; then
-        smooth_bar 100 "$T_FIXING_AUDIO"
+        echo "100"; echo "XXX"; echo "$T_FIXING_AUDIO"; echo "XXX"
     else
-        smooth_bar 100 "$T_INIT"
+        echo "100"; echo "XXX"; echo "$T_INIT"; echo "XXX"
+    fi
+    sleep 1
+
+    ) | dialog --backtitle "$T_BACKTITLE" --title "$T_CONN_TITLE" --gauge "" 8 55 0 > "$CURR_TTY"
+
+    # Move the Audio fix trigger to only fire if it's confirmed audio and stable
+    local final_icon=$(bluetoothctl info "$mac" | grep "Icon:" | awk '{print $2}')
+    if [[ "$final_icon" == audio* ]] && is_connected_stable "$mac"; then
+        ApplyAudioFix
     fi
 
-    ) | dialog --backtitle "$T_BACKTITLE" --title "$T_CONN_TITLE" --gauge "" 8 50 0 > "$CURR_TTY"
-    
-    [[ "$icon" == audio* ]] && ApplyAudioFix
-    
     if is_connected_stable "$mac"; then
         dialog --backtitle "$T_BACKTITLE" --title "$T_SUCCESS" --msgbox "\n $name $T_CONNECTED\n" 7 50 > "$CURR_TTY"
     else
-        dialog --backtitle "$T_BACKTITLE" --title "$T_FAILED" --msgbox "\n $T_FAIL_CONNECT $name.\n\n $T_FAIL_MSG" 12 50 > "$CURR_TTY"
+        # Dump the failed ghost terminal log into your audit log for debugging
+        echo "--- FAILED PAIRING LOG ---" >> /home/ark/bt_audit.log
+        cat /tmp/bt_pair.log >> /home/ark/bt_audit.log 2>/dev/null
+        dialog --backtitle "$T_BACKTITLE" --title "$T_FAILED" --msgbox "\n $T_FAIL_CONNECT $name.\n\n $T_FAIL_MSG\nCheck 'Read Last Audit' for reason." 12 50 > "$CURR_TTY"
     fi
     systemctl start bluetooth-icon-updater.service || true
 }
-
 # -------------------------------------------------------
 # Disconnection
 # -------------------------------------------------------
@@ -2212,13 +2078,19 @@ ListKnownAndConnect() {
     sleep 0.5
     ) &
     local warmup_pid=$!
-    wait $warmup_pid
     
     unset koptions
+    unset k_mac_list
+    local index=1
+    
     while read -r line; do
         mac=$(echo "$line" | awk '{print $2}')
         name=$(echo "$line" | cut -d ' ' -f 3-)
-        koptions+=("$mac" "$name")
+        
+        # Map to index
+        k_mac_list[$index]="$mac"
+        koptions+=("$index" "$name ($mac)")
+        index=$((index + 1))
     done < <(bluetoothctl devices | while read -r _ mac name; do
     if bluetoothctl info "$mac" 2>/dev/null | grep -q "Paired: yes"; then
         echo "Device $mac $name"
@@ -2233,7 +2105,9 @@ ListKnownAndConnect() {
     kselection=$(dialog --backtitle "$T_BACKTITLE" --title "$T_KNOWN_DEV" --menu "$T_CONNECT_TO" 11 50 4 "${koptions[@]}" 2>&1 > "$CURR_TTY")
     local dialog_exit=$?
     wait $warmup_pid
-    [ $dialog_exit -eq 0 ] && ConnectProcess "$kselection"
+    
+    # Send the mapped MAC to the connection process
+    [ $dialog_exit -eq 0 ] && ConnectProcess "${k_mac_list[$kselection]}"
 }
 
 # -------------------------------------------------------
@@ -2243,11 +2117,19 @@ DeleteDevice() {
     (
     AutoEnableBT
     ) &
+    
     unset doptions
+    unset d_mac_list
+    local index=1
+    
     while read -r line; do
         mac=$(echo "$line" | awk '{print $2}')
         name=$(echo "$line" | cut -d ' ' -f 3-)
-        doptions+=("$mac" "$name")
+        
+        # Map to index
+        d_mac_list[$index]="$mac"
+        doptions+=("$index" "$name ($mac)")
+        index=$((index + 1))
     done < <(bluetoothctl devices | while read -r _ mac name; do
     if bluetoothctl info "$mac" 2>/dev/null | grep -q "Paired: yes"; then
         echo "Device $mac $name"
@@ -2261,7 +2143,8 @@ DeleteDevice() {
 
     dselection=$(dialog --backtitle "$T_BACKTITLE" --title "$T_DELETE_TITLE" --menu "$T_CHOOSE_DEL" 11 50 4 "${doptions[@]}" 2>&1 > "$CURR_TTY")
     if [ $? -eq 0 ]; then
-        bluetoothctl remove "$dselection" > /dev/null 2>&1
+        # Use the mapped MAC address for the removal command
+        bluetoothctl remove "${d_mac_list[$dselection]}" > /dev/null 2>&1
         dialog --backtitle "$T_BACKTITLE" --title "$T_SUCCESS" --msgbox "\n $T_FORGOTTEN" 7 30 > "$CURR_TTY"
     fi
 }
@@ -2328,8 +2211,7 @@ RunUninstall() {
     # --- Stop and Disable Services ---
     infobox_gui "$T_STEP1_TITLE" "$T_STEP1_MSG"
 
-    # ADDED: bt-watcher.service and bt-icon-reset.service to the kill list
-    for svc in bt-volume-monitor.service bt-sink-switch.service reset-alsa.service pulseaudio.service bluetooth.service bt-watcher.service bt-icon-reset.service; do
+    for svc in bt-volume-monitor.service bt-sink-switch.service reset-alsa.service pulseaudio.service bluetooth.service; do
         if systemctl is-active --quiet "$svc" 2>/dev/null; then
             systemctl stop "$svc" 2>/dev/null
         fi
@@ -2341,18 +2223,14 @@ RunUninstall() {
     # --- Remove Installed Files ---
     infobox_gui "$T_STEP2_TITLE" "$T_STEP2_MSG"
 
-    # ADDED: The new watcher and reset scripts/services to the removal array
     FILES_TO_REMOVE=(
         "/usr/local/bin/bt-volume-monitor.sh"
         "/usr/local/bin/bt-sink-switch.sh"
         "/usr/local/bin/reset-alsa.sh"
-        "/usr/local/bin/bt-watcher.sh"
         "/etc/systemd/system/pulseaudio.service"
         "/etc/systemd/system/bt-volume-monitor.service"
         "/etc/systemd/system/bt-sink-switch.service"
         "/etc/systemd/system/reset-alsa.service"
-        "/etc/systemd/system/bt-watcher.service"
-        "/etc/systemd/system/bt-icon-reset.service"
         "/etc/udev/rules.d/99-input-event3.rules"
         "/etc/pulse/default.pa"
         "/etc/pulse/daemon.conf"
@@ -2372,13 +2250,6 @@ RunUninstall() {
     sed -i '/PULSE_SERVER/d' /etc/environment 2>/dev/null || true
     sed -i '/XDG_RUNTIME_DIR/d' /etc/environment 2>/dev/null || true
     sudo udevadm control --reload-rules
-
-    # ADDED: Clean up the generated SVG icons in the theme folders
-    for DIR in "/roms/themes/theme-EPIC-CODY/_art" "/roms2/themes/theme-EPIC-CODY/_art"; do
-        if [ -d "$DIR" ]; then
-            rm -f "$DIR/bt_on.svg" "$DIR/bt_off.svg"
-        fi
-    done
 
     # --- Restore /etc/bluetooth/main.conf ---
     infobox_gui "$T_STEP3_TITLE" "$T_STEP3_MSG"
@@ -2566,9 +2437,15 @@ UninstallerMenu() {
 # -------------------------------------------------------
 # Silent Audit: Writes hardware state to a log file
 # -------------------------------------------------------
+# -------------------------------------------------------
+# Silent Audit: Writes hardware state & raw LE scan to a log file
+# -------------------------------------------------------
 RunAudit() {
     local LOG_FILE="/home/ark/bt_audit.log"
     local PA_CMD="sudo -u ark XDG_RUNTIME_DIR=/run/user/${ARK_UID} PULSE_SERVER=unix:/run/user/${ARK_UID}/pulse/native pactl"
+    
+    dialog --backtitle "$T_BACKTITLE" --title "Hardware Audit" --infobox "\nRunning deep hardware audit...\nThis will take exactly 15 seconds." 6 45 > "$CURR_TTY"
+
     {
         echo "=== BT SYSTEM AUDIT: $(date) ==="
         echo "1. USB: $(lsusb | grep -i 'Realtek' | awk '{print $6,$7,$8}')"
@@ -2584,6 +2461,18 @@ RunAudit() {
         echo "7. PULSEAUDIO CARDS:"
         $PA_CMD list short cards 2>&1
         echo "=========================================="
+        echo "--- RAW HARDWARE LE SCAN TEST ---"
+        
+        # 1. Hard reset the radio state
+        sudo hciconfig hci0 down
+        sleep 1
+        sudo hciconfig hci0 up
+        sleep 1
+        
+        # 2. Force raw Low Energy scan for 10 seconds (Catches kernel/firmware errors)
+        timeout 10 sudo hcitool lescan 2>&1
+        
+        echo "--- END RAW SCAN ---"
     } > "$LOG_FILE"
     
     dialog --backtitle "$T_BACKTITLE" --title "$T_AUD_TITLE" --msgbox "${T_AUD_MSG//%LOG%/$LOG_FILE}" 8 45 > "$CURR_TTY"
@@ -2703,6 +2592,77 @@ EOF
 }
 
 # -------------------------------------------------------
+# Check for Updates (OTA)
+# -------------------------------------------------------
+UpdateScript() {
+    dialog --backtitle "$T_BACKTITLE" --title "$T_M_UPDATE" --infobox "\n$T_UP_CHK" 5 40 > "$CURR_TTY"
+
+    # Check for internet connection
+    if ! ping -c 1 -W 3 8.8.8.8 &>/dev/null; then
+        dialog --backtitle "$T_BACKTITLE" --title "$T_ERR_TITLE" --msgbox "\n$T_INTERNET\n\n$T_ACTIVE" 8 50 > "$CURR_TTY"
+        return
+    fi
+
+    # Define the RAW GitHub URL (Change filename to match your repo exactly)
+    local REPO_RAW_URL="https://raw.githubusercontent.com/kittrick/Bluetooth-Manager-for-ArkOS-dArkOSRE-PixelBudsEdition/main/YOUR_SCRIPT_FILENAME.sh"
+    local TEMP_FILE="/tmp/bt_manager_update.sh"
+
+    dialog --backtitle "$T_BACKTITLE" --title "$T_M_UPDATE" --infobox "\n$T_UP_DL" 5 50 > "$CURR_TTY"
+
+    # Download the latest version to a temp file
+    if wget -q -O "$TEMP_FILE" "$REPO_RAW_URL"; then
+        # Verify the downloaded file isn't empty and looks like a valid bash script
+        if grep -q "#!/bin/bash" "$TEMP_FILE"; then
+            
+            # Overwrite the current script ($0 is the path to the running script)
+            cp -f "$TEMP_FILE" "$0"
+            chmod +x "$0"
+            rm -f "$TEMP_FILE"
+
+            dialog --backtitle "$T_BACKTITLE" --title "$T_SUCCESS" --msgbox "\n$T_UP_SUCC" 7 50 > "$CURR_TTY"
+
+            # Restart the script seamlessly
+            exec "$0" "$@"
+        else
+            dialog --backtitle "$T_BACKTITLE" --title "$T_ERR_TITLE" --msgbox "\n$T_UP_ERR_INV" 7 50 > "$CURR_TTY"
+        fi
+    else
+        dialog --backtitle "$T_BACKTITLE" --title "$T_ERR_TITLE" --msgbox "\n$T_UP_ERR_NET" 7 50 > "$CURR_TTY"
+    fi
+}
+
+# -------------------------------------------------------
+# Toggle Driver (Generic vs Realtek)
+# -------------------------------------------------------
+ToggleDriver() {
+    local CURRENT_DRV=$(lsmod | grep -oE "rtk_btusb|btusb" | head -n1)
+    local NEXT_DRV="rtk_btusb"
+    [ "$CURRENT_DRV" == "rtk_btusb" ] && NEXT_DRV="btusb"
+    
+    dialog --backtitle "$T_BACKTITLE" --title "$T_DRV_SW_TITLE" --infobox "$T_DRV_SW_MSG $NEXT_DRV $T_DRV_SW_MSG2" 5 50 > "$CURR_TTY"
+    
+    sudo modprobe -r rtk_btusb btusb 2>/dev/null
+    if ! sudo modprobe "$NEXT_DRV" 2>/dev/null; then
+        dialog --backtitle "$T_BACKTITLE" --title "$T_ERR_TITLE" --msgbox "$T_DRV_ERR" 7 50 > "$CURR_TTY"
+        sudo modprobe btusb 2>/dev/null
+        return
+    fi
+    
+    sudo systemctl restart bluetooth
+    sleep 2
+    dialog --backtitle "$T_BACKTITLE" --title "$T_SUCCESS" --msgbox "$T_DRV_SW_SUCC $NEXT_DRV" 7 50 > "$CURR_TTY"
+}
+
+# -------------------------------------------------------
+# System Setup
+# -------------------------------------------------------
+SystemSetup() {
+    dialog --backtitle "$T_BACKTITLE" --title "$T_SETUP_TITLE" --infobox "$T_SETUP_MSG" 6 50 > "$CURR_TTY"
+    FixBluetoothConfig
+    dialog --backtitle "$T_BACKTITLE" --title "$T_SETUP_DONE_TITLE" --msgbox "$T_SETUP_DONE_MSG" 12 55 > "$CURR_TTY"
+}
+
+# -------------------------------------------------------
 # Main Menu
 # -------------------------------------------------------
 MainMenu() {
@@ -2710,6 +2670,7 @@ MainMenu() {
   EnsurePermissions
   
   while true; do
+    # Keep gptokeyb alive
     if [[ -z $(pgrep -f gptokeyb) ]]; then
         StartGPTKeyb
     fi
@@ -2723,35 +2684,39 @@ MainMenu() {
     fi
     
     mainselection=$(dialog --colors --backtitle "$T_BACKTITLE" --title "$T_MAIN_TITLE" --cancel-label "$T_EXIT" \
-    --menu "$T_STATUS: $BT_STAT\n$T_CONN_TO: $DEV_NAME" 20 55 10 \
+    --menu "$T_STATUS: $BT_STAT\n$T_CONN_TO: $DEV_NAME" 22 55 14 \
     1 "$TOGGLE_LABEL" \
     2 "$T_M_SCAN" \
-    3 "$T_KNOWN_DEV" \
-    4 "$T_M_FORGET" \
-    5 "$T_M_TOGGLE_DRIVER" \
-    6 "$T_M_AUDIT" \
-    7 "$T_M_TEST_CHIME" \
-    8 "$T_M_READ_AUDIT" \
-    9 "$T_M_POWERSHIFT" \
-    10 "$T_M_RESTORE_WIFI" \
-    11 "$T_M_SYSTEM_SETUP" \
-    12 "$T_MAIN_TITLE2" 2>&1 > "$CURR_TTY")
+    3 "$T_M_DISCONNECT" \
+    4 "$T_M_KNOWN" \
+    5 "$T_M_FORGET" \
+    6 "$T_M_TOGGLE_DRIVER" \
+    7 "$T_M_AUDIT" \
+    8 "$T_M_TEST_CHIME" \
+    9 "$T_M_READ_AUDIT" \
+    10 "$T_M_POWERSHIFT" \
+    11 "$T_M_RESTORE_WIFI" \
+    12 "$T_M_SYSTEM_SETUP" \
+    13 "$T_M_UPDATE" \
+    14 "$T_MAIN_TITLE2" 2>&1 > "$CURR_TTY")
 
     [ $? -ne 0 ] && ExitMenu
     
     case $mainselection in
         1) ToggleBT ;;
         2) ScanAndConnect ;;
-        3) ListKnownAndConnect ;;
-        4) DeleteDevice ;;
-        5) ToggleDriver ;;
-        6) RunAudit ;;
-        7) PlayTestChime;;
-        8) ReadAudit ;;
-        9) PowerShiftBT ;;
-        10) RestoreWiFi ;;
-        11) SystemSetup;;
-        12) UninstallerMenu ;;
+        3) DisconnectProcess ;;
+        4) ListKnownAndConnect ;;
+        5) DeleteDevice ;;
+        6) ToggleDriver ;;
+        7) RunAudit ;;
+        8) PlayTestChime;;
+        9) ReadAudit ;;
+        10) PowerShiftBT ;;
+        11) RestoreWiFi ;;
+        12) SystemSetup;;
+        13) UpdateScript ;;
+        14) UninstallerMenu ;;
     esac
   done
 }
