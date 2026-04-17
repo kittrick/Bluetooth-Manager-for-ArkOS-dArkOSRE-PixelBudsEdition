@@ -204,6 +204,9 @@ T_UP_DL="Downloading latest version from GitHub..."
 T_UP_SUCC="Update complete! The script will now restart."
 T_UP_ERR_INV="Update failed. Downloaded file is invalid. Check repo filename."
 T_UP_ERR_NET="Update failed. Could not reach GitHub."
+T_UP_BRANCH_MSG="Choose an update source:"
+T_UP_BRANCH_MAIN="Main (Stable)"
+T_UP_BRANCH_DEV="Development (Beta)"
 
 
 # --- FRANÇAIS (FR) --- 
@@ -342,6 +345,9 @@ T_UP_DL="Telechargement de la derniere version depuis GitHub..."
 T_UP_SUCC="Mise a jour terminee ! Le script va maintenant redemarrer."
 T_UP_ERR_INV="Echec de la mise a jour. Le fichier telecharge est invalide."
 T_UP_ERR_NET="Echec de la mise a jour. Impossible de joindre GitHub."
+T_UP_BRANCH_MSG="Choisissez une source de mise a jour :"
+T_UP_BRANCH_MAIN="Principale (Stable)"
+T_UP_BRANCH_DEV="Developpement (Beta)"
 
 # --- ESPAÑOL (ES) ---
 elif [[ "$SYSTEM_LANG" == *"es"* ]]; then
@@ -479,6 +485,9 @@ T_UP_DL="Downloading latest version from GitHub..."
 T_UP_SUCC="Update complete! The script will now restart."
 T_UP_ERR_INV="Update failed. Downloaded file is invalid. Check repo filename."
 T_UP_ERR_NET="Update failed. Could not reach GitHub."
+T_UP_BRANCH_MSG="Choose an update source:"
+T_UP_BRANCH_MAIN="Main (Stable)"
+T_UP_BRANCH_DEV="Development (Beta)"
 T_M_TOGGLE_DRIVER="Cambiar controlador (Generico vs Realtek)"
 T_M_AUDIT="Realizar auditoria del sistema"
 T_M_TEST_CHIME="Reproducir timbre de prueba"
@@ -513,6 +522,9 @@ T_UP_DL="Descargando la ultima version desde GitHub..."
 T_UP_SUCC="¡Actualizacion completada! El script se reiniciara ahora."
 T_UP_ERR_INV="Error de actualizacion. El archivo descargado no es valido."
 T_UP_ERR_NET="Error de actualizacion. No se pudo conectar con GitHub."
+T_UP_BRANCH_MSG="Elija una fuente de actualizacion:"
+T_UP_BRANCH_MAIN="Principal (Estable)"
+T_UP_BRANCH_DEV="Desarrollo (Beta)"
 
 # --- PORTUGUÊS (PT) ---
 elif [[ "$SYSTEM_LANG" == *"pt"* ]]; then
@@ -650,6 +662,9 @@ T_UP_DL="Downloading latest version from GitHub..."
 T_UP_SUCC="Update complete! The script will now restart."
 T_UP_ERR_INV="Update failed. Downloaded file is invalid. Check repo filename."
 T_UP_ERR_NET="Update failed. Could not reach GitHub."
+T_UP_BRANCH_MSG="Choose an update source:"
+T_UP_BRANCH_MAIN="Main (Stable)"
+T_UP_BRANCH_DEV="Development (Beta)"
 
 # --- ITALIANO (IT) ---
 elif [[ "$SYSTEM_LANG" == *"it"* ]]; then
@@ -786,6 +801,9 @@ T_UP_DL="Downloading latest version from GitHub..."
 T_UP_SUCC="Update complete! The script will now restart."
 T_UP_ERR_INV="Update failed. Downloaded file is invalid. Check repo filename."
 T_UP_ERR_NET="Update failed. Could not reach GitHub."
+T_UP_BRANCH_MSG="Choose an update source:"
+T_UP_BRANCH_MAIN="Main (Stable)"
+T_UP_BRANCH_DEV="Development (Beta)"
 
 # --- DEUTSCH (DE) ---
 elif [[ "$SYSTEM_LANG" == *"de"* ]]; then
@@ -923,6 +941,9 @@ T_UP_DL="Downloading latest version from GitHub..."
 T_UP_SUCC="Update complete! The script will now restart."
 T_UP_ERR_INV="Update failed. Downloaded file is invalid. Check repo filename."
 T_UP_ERR_NET="Update failed. Could not reach GitHub."
+T_UP_BRANCH_MSG="Choose an update source:"
+T_UP_BRANCH_MAIN="Main (Stable)"
+T_UP_BRANCH_DEV="Development (Beta)"
 
 # --- POLSKI (PL) ---
 elif [[ "$SYSTEM_LANG" == *"pl"* ]]; then
@@ -1060,6 +1081,9 @@ T_UP_DL="Downloading latest version from GitHub..."
 T_UP_SUCC="Update complete! The script will now restart."
 T_UP_ERR_INV="Update failed. Downloaded file is invalid. Check repo filename."
 T_UP_ERR_NET="Update failed. Could not reach GitHub."
+T_UP_BRANCH_MSG="Choose an update source:"
+T_UP_BRANCH_MAIN="Main (Stable)"
+T_UP_BRANCH_DEV="Development (Beta)"
 fi
 
 # -------------------------------------------------------
@@ -2595,21 +2619,33 @@ EOF
 # Check for Updates (OTA)
 # -------------------------------------------------------
 UpdateScript() {
-    dialog --backtitle "$T_BACKTITLE" --title "$T_M_UPDATE" --infobox "\n$T_UP_CHK" 5 40 > "$CURR_TTY"
-
     # Check for internet connection
     if ! ping -c 1 -W 3 8.8.8.8 &>/dev/null; then
         dialog --backtitle "$T_BACKTITLE" --title "$T_ERR_TITLE" --msgbox "\n$T_INTERNET\n\n$T_ACTIVE" 8 50 > "$CURR_TTY"
         return
     fi
 
-    # Define the RAW GitHub URL (Change filename to match your repo exactly)
-    local REPO_RAW_URL="https://raw.githubusercontent.com/kittrick/Bluetooth-Manager-for-ArkOS-dArkOSRE-PixelBudsEdition/main/YOUR_SCRIPT_FILENAME.sh"
+    local branch_choice
+    branch_choice=$(dialog --backtitle "$T_BACKTITLE" --title "$T_M_UPDATE" \
+        --cancel-label "$T_BACK" \
+        --menu "\n$T_UP_BRANCH_MSG" 12 50 2 \
+        1 "$T_UP_BRANCH_MAIN" \
+        2 "$T_UP_BRANCH_DEV" 2>&1 > "$CURR_TTY")
+    
+    [ $? -ne 0 ] && return
+
+    local branch="main"
+    [ "$branch_choice" -eq 2 ] && branch="dev"
+
+    dialog --backtitle "$T_BACKTITLE" --title "$T_M_UPDATE" --infobox "\n$T_UP_CHK" 5 40 > "$CURR_TTY"
+
+    # Define the RAW GitHub URL
+    local REPO_RAW_URL="https://raw.githubusercontent.com/kittrick/Bluetooth-Manager-for-ArkOS-dArkOSRE-PixelBudsEdition/$branch/Bluetooth%20Manager.sh"
     local TEMP_FILE="/tmp/bt_manager_update.sh"
 
     dialog --backtitle "$T_BACKTITLE" --title "$T_M_UPDATE" --infobox "\n$T_UP_DL" 5 50 > "$CURR_TTY"
 
-    # Download the latest version to a temp file
+    # Download the version from the chosen branch
     if wget -q -O "$TEMP_FILE" "$REPO_RAW_URL"; then
         # Verify the downloaded file isn't empty and looks like a valid bash script
         if grep -q "#!/bin/bash" "$TEMP_FILE"; then
