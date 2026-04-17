@@ -1832,17 +1832,17 @@ ScanAndConnect() {
     bluetoothctl pairable on > /dev/null 2>&1
     bluetoothctl discoverable on > /dev/null 2>&1
     
-    # THE FIX: Clear all filters so the TP-Link can scan Dual-Mode naturally
-    bluetoothctl set-scan-filter clear > /dev/null 2>&1
+    # Use 'transport auto' to ensure both Classic and LE devices are found
+    bluetoothctl set-scan-filter transport auto > /dev/null 2>&1
     
-    SCAN_TIME=8
+    SCAN_TIME=15
     bluetoothctl --timeout $SCAN_TIME scan on > /tmp/bt_scan_results.txt 2>&1 &
     SCAN_PID=$!
     
     for ((i=0; i<=SCAN_TIME*10; i++)); do
         PERCENT=$(( i * 100 / (SCAN_TIME * 10) ))
         if [ $i -lt 30 ]; then MSG="$T_SCAN_INIT"; 
-        elif [ $i -lt 80 ]; then MSG="$T_SCAN_PROCESS"; 
+        elif [ $i -lt $((SCAN_TIME*5)) ]; then MSG="$T_SCAN_PROCESS (Classic + LE)"; 
         else MSG="$T_SCAN_RESOLV"; fi
         
         echo "$PERCENT"
@@ -1854,37 +1854,39 @@ ScanAndConnect() {
     echo "100"
     ) | dialog --backtitle "$T_BACKTITLE" --title "$T_SCAN_TITLE" --gauge "$T_SCAN_START" 6 45 0 > "$CURR_TTY"
 
+    # Combine 'devices' list with newly discovered ones from the scan log
     bluetoothctl devices > /tmp/bt_devices_list.txt
+    grep "Device" /tmp/bt_scan_results.txt >> /tmp/bt_devices_list.txt
     
     unset coptions
     unset mac_list
     local index=1
+    declare -A seen_macs
     
     while read -r line; do
         if [[ "$line" == *"Device"* ]]; then
             local mac=$(echo "$line" | awk '{print $2}')
             
-            # Skip already paired devices
+            # Skip duplicates, invalid MACs, and already paired devices
+            if [[ ! "$mac" =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]]; then continue; fi
+            if [[ -n "${seen_macs[$mac]}" ]]; then continue; fi
             if bluetoothctl info "$mac" 2>/dev/null | grep -q "Paired: yes"; then continue; fi
             
-            # Extract the default name and format the dashed placeholder
+            seen_macs["$mac"]=1
+            
+            # Extract name, fallback to T_UNKNOWN
             local name=$(echo "$line" | cut -d ' ' -f 3- | xargs)
             local dashed_mac="${mac//:/-}"
             
-            # The Log Scraper (Try to find a name if it's missing)
-            if [[ "$name" == "$dashed_mac" ]] || [[ -z "$name" ]]; then
+            if [[ "$name" == "$dashed_mac" ]] || [[ -z "$name" ]] || [[ "$name" == "Device" ]]; then
+                # Try to find name in scan results
                 local log_name=$(grep "$mac" /tmp/bt_scan_results.txt | grep "Name:" | tail -n 1 | sed -n 's/.*Name: //p' | xargs)
-                if [ -n "$log_name" ]; then
-                    name="$log_name"
-                fi
+                [ -n "$log_name" ] && name="$log_name" || name="$T_UNKNOWN"
             fi
             
-            # THE FIX: Do NOT skip Unknown devices! Just label them.
-            if [[ "$name" == "$dashed_mac" ]] || [[ -z "$name" ]]; then
-                name="$T_UNKNOWN"
-            fi
+            # Final fallback/cleanup
+            [[ "$name" == "$mac" ]] && name="$T_UNKNOWN"
             
-            # Store MAC in the background array, and feed the clean UI string to the menu
             mac_list[$index]="$mac"
             coptions+=("$index" "$name ($mac)")
             index=$((index + 1))
@@ -1892,7 +1894,7 @@ ScanAndConnect() {
     done < /tmp/bt_devices_list.txt
 
     if [ ${#coptions[@]} -eq 0 ]; then
-        dialog --backtitle "$T_BACKTITLE" --title "$T_INFO" --msgbox "\n $T_NO_DEVICE" 8 40 > "$CURR_TTY"
+        dialog --backtitle "$T_BACKTITLE" --title "$T_INFO" --msgbox "\n $T_NO_DEVICE\n\nCheck /home/ark/bt_audit.log for details." 10 45 > "$CURR_TTY"
         return
     fi
 
@@ -1903,7 +1905,6 @@ ScanAndConnect() {
         
         local exit_code=$?
         if [ $exit_code -eq 0 ]; then
-            # Retrieve the actual MAC address from our background array
             ConnectProcess "${mac_list[$cselection]}"
             return
         elif [ $exit_code -eq 3 ]; then
@@ -2639,14 +2640,14 @@ UpdateScript() {
 
     dialog --backtitle "$T_BACKTITLE" --title "$T_M_UPDATE" --infobox "\n$T_UP_CHK" 5 40 > "$CURR_TTY"
 
-    # Define the RAW GitHub URL
-    local REPO_RAW_URL="https://raw.githubusercontent.com/kittrick/Bluetooth-Manager-for-ArkOS-dArkOSRE-PixelBudsEdition/$branch/Bluetooth%20Manager.sh"
+    # Define the RAW GitHub URL (Note the %20 for the space in the filename)
+    local REPO_RAW_URL="https://raw.githubusercontent.com/kittrick/Bluetooth-Manager-for-ArkOS-dArkOSRE-PixelBudsEdition/${branch}/Bluetooth%20Manager.sh"
     local TEMP_FILE="/tmp/bt_manager_update.sh"
 
     dialog --backtitle "$T_BACKTITLE" --title "$T_M_UPDATE" --infobox "\n$T_UP_DL" 5 50 > "$CURR_TTY"
 
     # Download the version from the chosen branch
-    if wget -q -O "$TEMP_FILE" "$REPO_RAW_URL"; then
+    if wget -q --no-check-certificate -O "$TEMP_FILE" "$REPO_RAW_URL"; then
         # Verify the downloaded file isn't empty and looks like a valid bash script
         if grep -q "#!/bin/bash" "$TEMP_FILE"; then
             
