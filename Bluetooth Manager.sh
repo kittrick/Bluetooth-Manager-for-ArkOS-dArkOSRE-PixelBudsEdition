@@ -2580,25 +2580,34 @@ ReadAudit() {
 PowerShiftBT() {
     dialog --backtitle "$T_BACKTITLE" --title "$T_PWR_TITLE" --infobox "$T_PWR_MSG1" 5 40 > "$CURR_TTY"
     
-    # Disable Wi-Fi Driver
-    sudo modprobe -r 8821cu 2>/dev/null
+    # 1. Stop all Bluetooth services first
+    sudo systemctl stop bluetooth bluetooth-icon-updater bt-sink-switch bt-volume-monitor 2>/dev/null
     
-    # Forceful USB/BT Reset
-    sudo modprobe -r rtk_btusb 2>/dev/null
-    sudo modprobe -r btusb 2>/dev/null
-    echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/unbind > /dev/null
+    # 2. Unload ALL related drivers
+    sudo modprobe -r 8821cu 2>/dev/null
+    sudo modprobe -r rtk_btusb btusb 2>/dev/null
     sleep 1
-    echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/bind > /dev/null
+    
+    # 3. Forceful USB Reset (Port 1-1 is standard for R36S OTG)
+    if [ -e "/sys/bus/usb/devices/1-1" ]; then
+        echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/unbind > /dev/null
+        sleep 1
+        echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/bind > /dev/null
+        sleep 1
+    fi
 
-    # Force the USB controller to stay in high-power mode
-    echo "1" | sudo tee /sys/bus/usb/devices/usb1/power/autosuspend_delay_ms 2>/dev/null
+    # 4. Force USB high-power mode
     echo "on" | sudo tee /sys/bus/usb/devices/usb1/power/control 2>/dev/null
     
-    # Start with standard driver
-    sudo modprobe btusb
-    systemctl restart bluetooth
+    # 5. Load Realtek specific driver first, fallback to generic
+    if ! sudo modprobe rtk_btusb 2>/dev/null; then
+        sudo modprobe btusb
+    fi
+    
+    # 6. Restart services
+    sudo systemctl start bluetooth
     sleep 2
-    bluetoothctl power on
+    sudo bluetoothctl power on
     
     dialog --backtitle "$T_BACKTITLE" --title "$T_PWR_TITLE" --msgbox "$T_PWR_MSG2" 8 40 > "$CURR_TTY"
 }
@@ -2609,16 +2618,24 @@ PowerShiftBT() {
 RestoreWiFi() {
     dialog --backtitle "$T_BACKTITLE" --title "$T_RES_TITLE" --infobox "$T_RES_MSG1" 5 40 > "$CURR_TTY"
     
-    # Kill Bluetooth processes and drivers
-    bluetoothctl power off > /dev/null 2>&1
-    sudo systemctl stop bluetooth
-    sudo modprobe -r btusb 2>/dev/null
-    sudo modprobe -r rtk_btusb 2>/dev/null
+    # 1. Kill Bluetooth processes and drivers
+    sudo bluetoothctl power off > /dev/null 2>&1
+    sudo systemctl stop bluetooth bluetooth-icon-updater bt-sink-switch bt-volume-monitor 2>/dev/null
+    sudo modprobe -r rtk_btusb btusb 2>/dev/null
+    sleep 1
     
-    # Reload Wi-Fi Driver
+    # 2. Forceful USB Reset to clear any BT firmware hangs
+    if [ -e "/sys/bus/usb/devices/1-1" ]; then
+        echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/unbind > /dev/null
+        sleep 1
+        echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/bind > /dev/null
+        sleep 1
+    fi
+    
+    # 3. Reload Wi-Fi Driver
     sudo modprobe 8821cu
     
-    # Give the system a moment to find the network
+    # 4. Give the system a moment to find the network
     sleep 2
     dialog --backtitle "$T_BACKTITLE" --title "$T_RES_TITLE" --msgbox "$T_RES_MSG2" 8 40 > "$CURR_TTY"
 }
