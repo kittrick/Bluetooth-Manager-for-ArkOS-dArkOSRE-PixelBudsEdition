@@ -2493,45 +2493,46 @@ RunAudit() {
     local LOG_FILE="/home/ark/bt_audit.log"
     local PA_CMD="sudo -u ark XDG_RUNTIME_DIR=/run/user/${ARK_UID} PULSE_SERVER=unix:/run/user/${ARK_UID}/pulse/native pactl"
     
-    dialog --backtitle "$T_BACKTITLE" --title "Hardware Audit" --infobox "\nRunning deep hardware audit...\nThis will take exactly 15 seconds." 6 45 > "$CURR_TTY"
+    # Function to log with timeout
+    safe_log() {
+        local msg="$1"
+        local cmd="$2"
+        local tout="${3:-5}"
+        echo "LOGGING: $msg"
+        echo "--- $msg ---" >> "$LOG_FILE"
+        timeout $tout bash -c "$cmd" >> "$LOG_FILE" 2>&1
+        echo "------------------------------------------" >> "$LOG_FILE"
+    }
 
-    {
-        echo "=== BT SYSTEM AUDIT: $(date) ==="
-        echo "1. USB DEVICES (Detailed):"
-        lsusb
-        echo "------------------------------------------"
-        echo "2. USB TOPOLOGY (Paths):"
-        lsusb -t
-        echo "------------------------------------------"
-        echo "3. DRIVERS LOADED:"
-        lsmod | grep -E "btusb|rtk_btusb|8821cu|bluetooth"
-        echo "------------------------------------------"
-        echo "4. ADAPTER (hciconfig):"
-        hciconfig -a
-        echo "------------------------------------------"
-        echo "5. ADAPTER (btmgmt):"
-        btmgmt info
-        echo "------------------------------------------"
-        echo "6. DMESG (Bluetooth Filter):"
-        dmesg | grep -iE "bluetooth|hci0|firmware|bluez" | tail -n 20
-        echo "------------------------------------------"
-        echo "7. PULSEAUDIO STATUS:"
-        $PA_CMD info | grep "Default Sink"
-        $PA_CMD list short sinks
-        echo "=========================================="
-        echo "--- RAW HARDWARE LE SCAN TEST ---"
-        
-        # 1. Hard reset the radio state
-        sudo hciconfig hci0 down
-        sleep 1
-        sudo hciconfig hci0 up
-        sleep 1
-        
-        # 2. Force raw Low Energy scan for 10 seconds (Catches kernel/firmware errors)
-        timeout 10 sudo hcitool lescan 2>&1
-        
-        echo "--- END RAW SCAN ---"
-    } > "$LOG_FILE"
+    dialog --backtitle "$T_BACKTITLE" --title "Hardware Audit" --infobox "\nStarting Resilient Audit...\nGathering USB data..." 6 45 > "$CURR_TTY"
+
+    echo "=== BT SYSTEM AUDIT: $(date) ===" > "$LOG_FILE"
+    
+    safe_log "USB DEVICES" "lsusb" 5
+    
+    dialog --backtitle "$T_BACKTITLE" --title "Hardware Audit" --infobox "\nGathering USB Topology..." 6 45 > "$CURR_TTY"
+    safe_log "USB TOPOLOGY" "lsusb -t" 5
+    
+    dialog --backtitle "$T_BACKTITLE" --title "Hardware Audit" --infobox "\nChecking Drivers..." 6 45 > "$CURR_TTY"
+    safe_log "DRIVERS" "lsmod | grep -E 'btusb|rtk_btusb|8821cu|bluetooth'" 2
+    
+    dialog --backtitle "$T_BACKTITLE" --title "Hardware Audit" --infobox "\nQuerying Adapter (hciconfig)..." 6 45 > "$CURR_TTY"
+    safe_log "HCICONFIG" "hciconfig -a" 5
+    
+    dialog --backtitle "$T_BACKTITLE" --title "Hardware Audit" --infobox "\nQuerying Adapter (btmgmt)..." 6 45 > "$CURR_TTY"
+    safe_log "BTMGMT INFO" "btmgmt info" 5
+    
+    dialog --backtitle "$T_BACKTITLE" --title "Hardware Audit" --infobox "\nReading System Logs..." 6 45 > "$CURR_TTY"
+    safe_log "DMESG" "dmesg | grep -iE 'bluetooth|hci0|firmware|bluez' | tail -n 20" 2
+    
+    dialog --backtitle "$T_BACKTITLE" --title "Hardware Audit" --infobox "\nChecking Audio Stack..." 6 45 > "$CURR_TTY"
+    safe_log "PULSEAUDIO" "$PA_CMD info | grep 'Default Sink' && $PA_CMD list short sinks" 5
+    
+    dialog --backtitle "$T_BACKTITLE" --title "Hardware Audit" --infobox "\nPerforming RAW LE SCAN (10s)...\nDo not cancel." 6 45 > "$CURR_TTY"
+    echo "--- RAW LE SCAN ---" >> "$LOG_FILE"
+    # Try the newer btmgmt first, as it's more stable than hcitool
+    timeout 10 btmgmt find -l >> "$LOG_FILE" 2>&1
+    echo "--- END AUDIT ---" >> "$LOG_FILE"
     
     dialog --backtitle "$T_BACKTITLE" --title "$T_AUD_TITLE" --msgbox "${T_AUD_MSG//%LOG%/$LOG_FILE}" 8 45 > "$CURR_TTY"
 }
