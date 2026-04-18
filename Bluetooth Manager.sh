@@ -1154,8 +1154,13 @@ sleep 0.1
 # Bluetooth Status
 # -------------------------------------------------------
 GetPowerStatus() {
-    if rfkill list bluetooth | grep -q "Soft blocked: yes"; then return 1; fi
+    # Check if Bluetooth daemon is active
     if ! systemctl is-active --quiet bluetooth; then return 1; fi
+    
+    # Check if a controller is available
+    if ! echo "list" | bluetoothctl | grep -q "Controller"; then return 1; fi
+    
+    # Check if Powered: yes
     if ! echo "show" | bluetoothctl | sed 's/\x1b\[[0-9;]*m//g' | grep -q "Powered: yes"; then return 1; fi
     return 0
 }
@@ -2584,8 +2589,8 @@ PowerShiftBT() {
     sudo systemctl stop bluetooth bluetooth-icon-updater bt-sink-switch bt-volume-monitor 2>/dev/null
     
     # 2. Unload ALL related drivers
-    sudo modprobe -r 8821cu 2>/dev/null
-    sudo modprobe -r rtk_btusb btusb 2>/dev/null
+    sudo /sbin/modprobe -r 8821cu 2>/dev/null
+    sudo /sbin/modprobe -r rtk_btusb btusb 2>/dev/null
     sleep 1
     
     # 3. Forceful USB Reset (Port 1-1 is standard for R36S OTG)
@@ -2621,7 +2626,7 @@ RestoreWiFi() {
     # 1. Kill Bluetooth processes and drivers
     sudo bluetoothctl power off > /dev/null 2>&1
     sudo systemctl stop bluetooth bluetooth-icon-updater bt-sink-switch bt-volume-monitor 2>/dev/null
-    sudo modprobe -r rtk_btusb btusb 2>/dev/null
+    sudo /sbin/modprobe -r rtk_btusb btusb 2>/dev/null
     sleep 1
     
     # 2. Forceful USB Reset to clear any BT firmware hangs
@@ -2729,7 +2734,7 @@ ToggleDriver() {
     
     dialog --backtitle "$T_BACKTITLE" --title "$T_DRV_SW_TITLE" --infobox "$T_DRV_SW_MSG $NEXT_DRV $T_DRV_SW_MSG2" 5 50 > "$CURR_TTY"
     
-    sudo modprobe -r rtk_btusb btusb 2>/dev/null
+    sudo /sbin/modprobe -r rtk_btusb btusb 2>/dev/null
     if ! sudo modprobe "$NEXT_DRV" 2>/dev/null; then
         dialog --backtitle "$T_BACKTITLE" --title "$T_ERR_TITLE" --msgbox "$T_DRV_ERR" 7 50 > "$CURR_TTY"
         sudo modprobe btusb 2>/dev/null
@@ -2761,7 +2766,8 @@ RepairStack() {
     sudo pkill -9 bluetoothctl 2>/dev/null
 
     # 2. Reset the hardware (Force unbind/bind if paths are known, or just driver cycle)
-    sudo modprobe -r rtk_btusb btusb 8821cu 2>/dev/null
+    sudo /sbin/modprobe -r 
+ rtk_btusb btusb 8821cu 2>/dev/null
     sleep 2
 
     # 3. Clear BlueZ cache (Careful: removes paired devices, but often needed for visibility bugs)
