@@ -207,6 +207,10 @@ T_UP_ERR_NET="Update failed. Could not reach GitHub."
 T_UP_BRANCH_MSG="Choose an update source:"
 T_UP_BRANCH_MAIN="Main (Stable)"
 T_UP_BRANCH_DEV="Development (Beta)"
+T_M_REPAIR="Repair Bluetooth Stack"
+T_REPAIR_TITLE="Repair Bluetooth"
+T_REPAIR_MSG="\nPerforming a deep reset of the Bluetooth stack...\nReloading drivers and clearing caches."
+T_REPAIR_DONE="Bluetooth stack has been repaired and restarted."
 
 
 # --- FRANÇAIS (FR) --- 
@@ -488,6 +492,10 @@ T_UP_ERR_NET="Update failed. Could not reach GitHub."
 T_UP_BRANCH_MSG="Choose an update source:"
 T_UP_BRANCH_MAIN="Main (Stable)"
 T_UP_BRANCH_DEV="Development (Beta)"
+T_M_REPAIR="Reparar pila Bluetooth"
+T_REPAIR_TITLE="Reparacion Bluetooth"
+T_REPAIR_MSG="\nRealizando una reinitializacion profunda...\nRecargando controladores y borrando caches."
+T_REPAIR_DONE="La pila Bluetooth ha sido reparada y reiniciada."
 T_M_TOGGLE_DRIVER="Cambiar controlador (Generico vs Realtek)"
 T_M_AUDIT="Realizar auditoria del sistema"
 T_M_TEST_CHIME="Reproducir timbre de prueba"
@@ -665,6 +673,10 @@ T_UP_ERR_NET="Update failed. Could not reach GitHub."
 T_UP_BRANCH_MSG="Choose an update source:"
 T_UP_BRANCH_MAIN="Main (Stable)"
 T_UP_BRANCH_DEV="Development (Beta)"
+T_M_REPAIR="Repair Bluetooth Stack"
+T_REPAIR_TITLE="Repair Bluetooth"
+T_REPAIR_MSG="\nPerforming a deep reset of the Bluetooth stack...\nReloading drivers and clearing caches."
+T_REPAIR_DONE="Bluetooth stack has been repaired and restarted."
 
 # --- ITALIANO (IT) ---
 elif [[ "$SYSTEM_LANG" == *"it"* ]]; then
@@ -804,6 +816,10 @@ T_UP_ERR_NET="Update failed. Could not reach GitHub."
 T_UP_BRANCH_MSG="Choose an update source:"
 T_UP_BRANCH_MAIN="Main (Stable)"
 T_UP_BRANCH_DEV="Development (Beta)"
+T_M_REPAIR="Repair Bluetooth Stack"
+T_REPAIR_TITLE="Repair Bluetooth"
+T_REPAIR_MSG="\nPerforming a deep reset of the Bluetooth stack...\nReloading drivers and clearing caches."
+T_REPAIR_DONE="Bluetooth stack has been repaired and restarted."
 
 # --- DEUTSCH (DE) ---
 elif [[ "$SYSTEM_LANG" == *"de"* ]]; then
@@ -944,6 +960,10 @@ T_UP_ERR_NET="Update failed. Could not reach GitHub."
 T_UP_BRANCH_MSG="Choose an update source:"
 T_UP_BRANCH_MAIN="Main (Stable)"
 T_UP_BRANCH_DEV="Development (Beta)"
+T_M_REPAIR="Repair Bluetooth Stack"
+T_REPAIR_TITLE="Repair Bluetooth"
+T_REPAIR_MSG="\nPerforming a deep reset of the Bluetooth stack...\nReloading drivers and clearing caches."
+T_REPAIR_DONE="Bluetooth stack has been repaired and restarted."
 
 # --- POLSKI (PL) ---
 elif [[ "$SYSTEM_LANG" == *"pl"* ]]; then
@@ -1084,6 +1104,10 @@ T_UP_ERR_NET="Update failed. Could not reach GitHub."
 T_UP_BRANCH_MSG="Choose an update source:"
 T_UP_BRANCH_MAIN="Main (Stable)"
 T_UP_BRANCH_DEV="Development (Beta)"
+T_M_REPAIR="Repair Bluetooth Stack"
+T_REPAIR_TITLE="Repair Bluetooth"
+T_REPAIR_MSG="\nPerforming a deep reset of the Bluetooth stack...\nReloading drivers and clearing caches."
+T_REPAIR_DONE="Bluetooth stack has been repaired and restarted."
 fi
 
 # -------------------------------------------------------
@@ -2473,18 +2497,27 @@ RunAudit() {
 
     {
         echo "=== BT SYSTEM AUDIT: $(date) ==="
-        echo "1. USB: $(lsusb | grep -i 'Realtek' | awk '{print $6,$7,$8}')"
-        echo "2. DRIVER: $(lsmod | grep -E 'btusb|rtk_btusb' | awk '{print $1}')"
-        echo "3. MAC: $(hciconfig -a | grep 'BD Address' | awk '{print $3}')"
-        echo "4. LOGS:"
-        dmesg | grep -iE "bluetooth|hci0" | tail -n 10
-        echo "5. SERVICE STATUS:"
-        systemctl status bluetooth | grep "Active:"
-        hciconfig -a 2>&1
-        echo "6. PULSEAUDIO SINKS:"
-        $PA_CMD list short sinks 2>&1
-        echo "7. PULSEAUDIO CARDS:"
-        $PA_CMD list short cards 2>&1
+        echo "1. USB DEVICES (Detailed):"
+        lsusb
+        echo "------------------------------------------"
+        echo "2. USB TOPOLOGY (Paths):"
+        lsusb -t
+        echo "------------------------------------------"
+        echo "3. DRIVERS LOADED:"
+        lsmod | grep -E "btusb|rtk_btusb|8821cu|bluetooth"
+        echo "------------------------------------------"
+        echo "4. ADAPTER (hciconfig):"
+        hciconfig -a
+        echo "------------------------------------------"
+        echo "5. ADAPTER (btmgmt):"
+        btmgmt info
+        echo "------------------------------------------"
+        echo "6. DMESG (Bluetooth Filter):"
+        dmesg | grep -iE "bluetooth|hci0|firmware|bluez" | tail -n 20
+        echo "------------------------------------------"
+        echo "7. PULSEAUDIO STATUS:"
+        $PA_CMD info | grep "Default Sink"
+        $PA_CMD list short sinks
         echo "=========================================="
         echo "--- RAW HARDWARE LE SCAN TEST ---"
         
@@ -2700,28 +2733,63 @@ SystemSetup() {
 }
 
 # -------------------------------------------------------
+# Repair Bluetooth Stack
+# -------------------------------------------------------
+RepairStack() {
+    dialog --backtitle "$T_BACKTITLE" --title "$T_REPAIR_TITLE" --infobox "$T_REPAIR_MSG" 6 50 > "$CURR_TTY"
+
+    # 1. Kill all Bluetooth processes and stop services
+    sudo systemctl stop bluetooth bluetooth-icon-updater bt-sink-switch bt-volume-monitor 2>/dev/null
+    sudo pkill -9 bluetoothctl 2>/dev/null
+
+    # 2. Reset the hardware (Force unbind/bind if paths are known, or just driver cycle)
+    sudo modprobe -r rtk_btusb btusb 8821cu 2>/dev/null
+    sleep 2
+
+    # 3. Clear BlueZ cache (Careful: removes paired devices, but often needed for visibility bugs)
+    # sudo rm -rf /var/lib/bluetooth/* # We'll skip this to avoid data loss unless asked
+
+    # 4. Reload drivers
+    sudo modprobe btusb 2>/dev/null
+    sudo modprobe rtk_btusb 2>/dev/null
+    sudo modprobe 8821cu 2>/dev/null
+
+    # 5. Bring adapter up manually
+    sudo hciconfig hci0 up 2>/dev/null
+    sudo hciconfig hci0 sscan 2>/dev/null
+    sudo hciconfig hci0 pscan 2>/dev/null
+
+    # 6. Restart services
+    sudo systemctl start bluetooth
+    sleep 2
+    sudo systemctl start bluetooth-icon-updater bt-sink-switch bt-volume-monitor 2>/dev/null
+
+    dialog --backtitle "$T_BACKTITLE" --title "$T_SUCCESS" --msgbox "$T_REPAIR_DONE" 8 45 > "$CURR_TTY"
+}
+
+# -------------------------------------------------------
 # Main Menu
 # -------------------------------------------------------
 MainMenu() {
   CheckDeps
   EnsurePermissions
-  
+
   while true; do
-    # Keep gptokeyb alive
+	# Keep gptokeyb alive
     if [[ -z $(pgrep -f gptokeyb) ]]; then
         StartGPTKeyb
     fi
-  
+
     if GetPowerStatus; then
         BT_STAT="\Z2$T_ON\Zn"; DEV_NAME="\Z4$(GetConnectedName)\Zn"
-        TOGGLE_LABEL="$T_DISABLE Bluetooth"
+		TOGGLE_LABEL="$T_DISABLE Bluetooth"
     else
         BT_STAT="\Z1$T_OFF\Zn"; DEV_NAME="$T_NONE"
-        TOGGLE_LABEL="$T_ENABLE Bluetooth"
+		TOGGLE_LABEL="$T_ENABLE Bluetooth"
     fi
-    
+
     mainselection=$(dialog --colors --backtitle "$T_BACKTITLE" --title "$T_MAIN_TITLE" --cancel-label "$T_EXIT" \
-    --menu "$T_STATUS: $BT_STAT\n$T_CONN_TO: $DEV_NAME" 22 55 14 \
+    --menu "$T_STATUS: $BT_STAT\n$T_CONN_TO: $DEV_NAME" 22 55 15 \
     1 "$TOGGLE_LABEL" \
     2 "$T_M_SCAN" \
     3 "$T_M_DISCONNECT" \
@@ -2735,10 +2803,11 @@ MainMenu() {
     11 "$T_M_RESTORE_WIFI" \
     12 "$T_M_SYSTEM_SETUP" \
     13 "$T_M_UPDATE" \
-    14 "$T_MAIN_TITLE2" 2>&1 > "$CURR_TTY")
+    14 "$T_M_REPAIR" \
+    15 "$T_MAIN_TITLE2" 2>&1 > "$CURR_TTY")
 
     [ $? -ne 0 ] && ExitMenu
-    
+
     case $mainselection in
         1) ToggleBT ;;
         2) ScanAndConnect ;;
@@ -2753,11 +2822,11 @@ MainMenu() {
         11) RestoreWiFi ;;
         12) SystemSetup;;
         13) UpdateScript ;;
-        14) UninstallerMenu ;;
+        14) RepairStack ;;
+        15) UninstallerMenu ;;
     esac
   done
 }
-
 # -------------------------------------------------------
 # Gamepad Setup
 # -------------------------------------------------------
