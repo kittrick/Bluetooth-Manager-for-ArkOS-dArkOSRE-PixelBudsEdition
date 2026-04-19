@@ -1,4 +1,8 @@
-    local total_lines
+# -------------------------------------------------------
+# Read Last Audit: Auto-Scrolling Teleprompter
+# -------------------------------------------------------
+ReadAudit() {
+    local LOG_FILE="/home/ark/bt_audit.log"
     local chunk_size=10
     local start_line=1
 
@@ -9,13 +13,11 @@
 
     total_lines=$(wc -l < "$LOG_FILE")
 
-    # The Teleprompter Loop
     while [ "$start_line" -le "$total_lines" ]; do
         printf "\033[H\033[2J" > "$CURR_TTY"
         echo "=== READING AUDIT (Lines $start_line to $((start_line + chunk_size - 1))) ===" > "$CURR_TTY"
         echo "----------------------------------------------------" > "$CURR_TTY"
         
-        # Display the chunk
         sed -n "${start_line},$((start_line + chunk_size - 1))p" "$LOG_FILE" > "$CURR_TTY"
         
         echo -e "\n----------------------------------------------------" > "$CURR_TTY"
@@ -40,15 +42,15 @@ PowerShiftBT() {
     sudo systemctl stop bluetooth bluetooth-icon-updater bt-sink-switch bt-volume-monitor 2>/dev/null
     
     # 2. Kill the kernel modules entirely
-    sudo modprobe -r btusb 2>/dev/null
-    sudo modprobe -r rtk_btusb 2>/dev/null
-    sudo modprobe -r 8821cu 2>/dev/null
+    sudo /sbin/modprobe -r btusb 2>/dev/null
+    sudo /sbin/modprobe -r rtk_btusb 2>/dev/null
+    sudo /sbin/modprobe -r 8821cu 2>/dev/null
     sleep 2
     
     # 3. Force binding rtk_btusb
     sudo /sbin/modprobe rtk_btusb 2>>"/home/ark/bt_audit.log"
 
-    # Wait for the driver to actually bind to the interface
+    # Wait for the driver to actually bind
     echo "Waiting for rtk_btusb bind..." >> "/home/ark/bt_audit.log"
     for i in {1..10}; do
         if lsmod | grep -q "rtk_btusb"; then
@@ -58,9 +60,8 @@ PowerShiftBT() {
         sleep 1
     done
     sleep 3
-
     
-    # 4. Bring up the interface using the system path
+    # 4. Bring up the interface
     if command -v hciconfig >/dev/null; then
         sudo hciconfig hci0 up 2>>"/home/ark/bt_audit.log"
     fi
@@ -87,7 +88,7 @@ RestoreWiFi() {
     sleep 1
     
     # 2. Forceful USB Reset to clear any BT firmware hangs
-    if [ -e "/sys/bus/usb/devices/1-1" ]; then
+    if [ -e "/sys/bus/usb/drivers/usb/1-1" ]; then
         echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/unbind > /dev/null
         sleep 1
         echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/bind > /dev/null
@@ -95,7 +96,66 @@ RestoreWiFi() {
     fi
     
     # 3. Reload Wi-Fi Driver
-    sudo modprobe 8821cu
+    sudo /sbin/modprobe 8821cu
     
     # 4. Give the system a moment to find the network
     sleep 2
+    dialog --backtitle "$T_BACKTITLE" --title "$T_RES_TITLE" --msgbox "$T_RES_MSG2" 8 40 > "$CURR_TTY"
+}
+
+# -------------------------------------------------------
+# Repair Bluetooth Stack
+# -------------------------------------------------------
+RepairStack() {
+    dialog --backtitle "$T_BACKTITLE" --title "$T_REPAIR_TITLE" --infobox "$T_REPAIR_MSG" 6 50 > "$CURR_TTY"
+    
+    # Stop services
+    sudo systemctl stop bluetooth bluetooth-icon-updater bt-sink-switch bt-volume-monitor 2>/dev/null
+    
+    # Force unload
+    sudo /sbin/modprobe -r btusb rtk_btusb 8821cu 2>/dev/null
+    sleep 2
+    
+    # Reload modules
+    sudo /sbin/modprobe btusb 2>/dev/null
+    sudo /sbin/modprobe rtk_btusb 2>/dev/null
+    sudo /sbin/modprobe 8821cu 2>/dev/null
+    
+    # Restart
+    sudo systemctl start bluetooth
+    sleep 5
+    sudo bluetoothctl power on
+    
+    dialog --backtitle "$T_BACKTITLE" --title "$T_SUCCESS" --msgbox "$T_REPAIR_DONE" 8 45 > "$CURR_TTY"
+}
+
+# -------------------------------------------------------
+# Silent Audit: Writes hardware state to a log file
+# -------------------------------------------------------
+RunAudit() {
+    local LOG_FILE="/home/ark/bt_audit.log"
+    local PA_CMD="sudo -u ark XDG_RUNTIME_DIR=/run/user/${ARK_UID} PULSE_SERVER=unix:/run/user/${ARK_UID}/pulse/native pactl"
+    
+    safe_log() {
+        echo "--- $1 ---" >> "$LOG_FILE"
+        timeout $3 bash -c "$2" >> "$LOG_FILE" 2>&1
+        echo "------------------------------------------" >> "$LOG_FILE"
+    }
+
+    dialog --backtitle "$T_BACKTITLE" --title "Hardware Audit" --infobox "\nRunning deep hardware audit..." 6 45 > "$CURR_TTY"
+
+    echo "=== BT SYSTEM AUDIT: $(date) ===" > "$LOG_FILE"
+    safe_log "USB DEVICES" "lsusb" 5
+    safe_log "USB TOPOLOGY" "lsusb -t" 5
+    safe_log "DRIVERS" "lsmod | grep -E 'btusb|rtk_btusb|8821cu|bluetooth'" 2
+    safe_log "HCICONFIG" "hciconfig -a" 5
+    safe_log "BTMGMT INFO" "btmgmt info" 5
+    safe_log "DMESG" "dmesg | grep -iE 'bluetooth|hci0|firmware|bluez' | tail -n 20" 2
+    safe_log "PULSEAUDIO" "$PA_CMD info | grep 'Default Sink' && $PA_CMD list short sinks" 5
+    
+    echo "--- RAW LE SCAN ---" >> "$LOG_FILE"
+    timeout 10 btmgmt find -l >> "$LOG_FILE" 2>&1
+    echo "--- END AUDIT ---" >> "$LOG_FILE"
+    
+    dialog --backtitle "$T_BACKTITLE" --title "$T_AUD_TITLE" --msgbox "Audit complete. Check bt_audit.log." 8 45 > "$CURR_TTY"
+}
