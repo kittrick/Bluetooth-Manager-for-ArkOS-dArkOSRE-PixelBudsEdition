@@ -3,7 +3,7 @@ RunAudit() {
     local PA_CMD="sudo -u ark XDG_RUNTIME_DIR=/run/user/${ARK_UID} PULSE_SERVER=unix:/run/user/${ARK_UID}/pulse/native pactl"
     
     # Function to log with timeout
-    
+    safe_log() {
         local msg="$1"
         local cmd="$2"
         local tout="${3:-5}"
@@ -99,35 +99,4 @@ RepairStack() {
     sudo systemctl start bluetooth-icon-updater bt-sink-switch bt-volume-monitor 2>/dev/null
 
     dialog --backtitle "$T_BACKTITLE" --title "$T_SUCCESS" --msgbox "$T_REPAIR_DONE" 8 45 > "$CURR_TTY"
-}
-
-ReadAudit() {
-    local LOG_FILE="/tmp/bt_audit.log"
-    local chunk_size=10
-    local start_line=1
-
-    if [ ! -f "$LOG_FILE" ]; then
-        dialog --backtitle "$T_BACKTITLE" --title "$T_ERR_TITLE" --msgbox "$T_READ_ERR" 8 45 > "$CURR_TTY"
-        return
-    fi
-
-    total_lines=$(wc -l < "$LOG_FILE")
-
-    while [ "$start_line" -le "$total_lines" ]; do
-        printf "\033[H\033[2J" > "$CURR_TTY"
-        echo "=== READING AUDIT (Lines $start_line to $((start_line + chunk_size - 1))) ===" > "$CURR_TTY"
-        echo "----------------------------------------------------" > "$CURR_TTY"
-        
-        sed -n "${start_line},$((start_line + chunk_size - 1))p" "$LOG_FILE" > "$CURR_TTY"
-        
-        echo -e "\n----------------------------------------------------" > "$CURR_TTY"
-        echo "WAITING 10 SECONDS... (DO NOT PRESS BUTTONS)" > "$CURR_TTY"
-        
-        sleep 10
-        start_line=$((start_line + chunk_size))
-    done
-
-    printf "\033[H\033[2J" > "$CURR_TTY"
-    echo "END OF AUDIT. RETURNING TO MENU..." > "$CURR_TTY"
-    sleep 2
 }
