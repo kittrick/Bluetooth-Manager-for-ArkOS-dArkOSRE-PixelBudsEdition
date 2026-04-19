@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# Headless mode check
+if [[ "$1" == "--nogui" ]]; then
+    export HEADLESS=true
+    shift
+fi
+if [[ "$HEADLESS" == "true" ]]; then
+    dialog() { echo "DIALOG: $@"; }
+    export -f dialog
+fi
+
 # Load external utilities
 export T_BACKTITLE CURR_TTY; source "$(dirname "$0")/lib/bt_utils.sh"
 source "$(dirname "$0")/lib/locale.sh"
