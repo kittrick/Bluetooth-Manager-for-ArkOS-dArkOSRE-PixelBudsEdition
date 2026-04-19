@@ -2585,19 +2585,35 @@ ReadAudit() {
 PowerShiftBT() {
     dialog --backtitle "$T_BACKTITLE" --title "$T_PWR_TITLE" --infobox "$T_PWR_MSG1" 5 40 > "$CURR_TTY"
     
-    # 1. Stop all Bluetooth services first
+    # 1. Stop all Bluetooth services
     sudo systemctl stop bluetooth bluetooth-icon-updater bt-sink-switch bt-volume-monitor 2>/dev/null
     
-    # 2. Unload standard drivers
-    sudo /sbin/modprobe -r btusb 2>/dev/null
-    sudo /sbin/modprobe -r rtk_btusb 2>/dev/null
+    # 2. Hard Unbind the USB device to force hardware reset
+    if [ -e "/sys/bus/usb/drivers/usb/1-1" ]; then
+        echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/unbind > /dev/null
+        sleep 2
+    fi
+
+    # 3. Unload Wi-Fi and potential BT drivers
+    sudo /sbin/modprobe -r 8821cu 2>/dev/null
+    sudo /sbin/modprobe -r btusb rtk_btusb 2>/dev/null
     sleep 2
     
-    # 3. Reload Realtek driver to claim the interfaces
+    # 4. Re-bind the USB device
+    if [ -e "/sys/bus/usb/drivers/usb/1-1" ]; then
+        echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/bind > /dev/null
+        sleep 2
+    fi
+    
+    # 5. Load only the Bluetooth driver
     sudo /sbin/modprobe rtk_btusb
     sleep 2
     
-    # 4. Restart services
+    # 6. Force the HCI controller up
+    sudo /sbin/hciconfig hci0 up 2>/dev/null
+    sleep 2
+    
+    # 7. Restart services and power up
     sudo systemctl start bluetooth
     sleep 2
     sudo bluetoothctl power on
