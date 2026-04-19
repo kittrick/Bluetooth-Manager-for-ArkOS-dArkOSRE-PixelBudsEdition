@@ -224,3 +224,4 @@ ListKnownAndConnect() {
     
     # Send the mapped MAC to the connection process
     [ $dialog_exit -eq 0 ] && ConnectProcess "${k_mac_list[$kselection]}"
+}
