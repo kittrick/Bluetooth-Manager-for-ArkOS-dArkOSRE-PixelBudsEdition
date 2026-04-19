@@ -1,0 +1,70 @@
+=== BT SYSTEM AUDIT: Fri Apr 17 07:57:46 PM PDT 2026 ===
+--- USB DEVICES ---
+Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+Bus 001 Device 006: ID 0bda:c820 Realtek Semiconductor Corp. 802.11ac NIC
+------------------------------------------
+--- USB TOPOLOGY ---
+/sys/bus/usb/devices/1-1/rx_lanes: No such file or directory
+/sys/bus/usb/devices/1-1/tx_lanes: No such file or directory
+/sys/bus/usb/devices/usb1/rx_lanes: No such file or directory
+/sys/bus/usb/devices/usb1/tx_lanes: No such file or directory
+/:  Bus 001.Port 001: Dev 001, Class=root_hub, Driver=dwc2/1p, 480M
+    |__ Port 001: Dev 006, If 0, Class=Wireless, Driver=btusb, 480M
+    |__ Port 001: Dev 006, If 1, Class=Wireless, Driver=btusb, 480M
+    |__ Port 001: Dev 006, If 2, Class=Vendor Specific Class, Driver=[none], 480M
+------------------------------------------
+--- DRIVERS ---
+8821cu               1921024  0
+rtk_btusb              49152  0
+btusb                  36864  0
+btrtl                  12288  1 btusb
+btbcm                  12288  1 btusb
+btintel                12288  1 btusb
+------------------------------------------
+--- HCICONFIG ---
+hci0:	Type: Primary  Bus: USB
+	BD Address: 00:00:00:00:00:00  ACL MTU: 0:0  SCO MTU: 0:0
+	DOWN 
+	RX bytes:0 acl:0 sco:0 events:0 errors:0
+	TX bytes:0 acl:0 sco:0 commands:2 errors:2
+	Features: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+	Packet type: DM1 DH1 HV1 
+	Link policy: 
+	Link mode: PERIPHERAL ACCEPT 
+
+------------------------------------------
+--- BTMGMT INFO ---
+------------------------------------------
+--- DMESG ---
+[   69.773349] Bluetooth: hci0 command 0xfc20 tx timeout
+[   77.765421] Bluetooth: hci0: RTL: download fw command failed (-110)
+[  205.864287] rtk_btusb: Realtek Bluetooth USB driver module init, version 4.1.5
+[  207.615715] Bluetooth: hci0 command 0x1001 tx timeout
+[  215.611797] Bluetooth: hci0: RTL: HCI_OP_READ_LOCAL_VERSION failed (-110)
+[  217.615740] Bluetooth: hci0 command 0x1001 tx timeout
+[  225.611772] Bluetooth: hci0: RTL: HCI_OP_READ_LOCAL_VERSION failed (-110)
+[  307.346631] rtk_btusb: Realtek Bluetooth USB driver module exit
+[  332.243335] Bluetooth: hci0: RTL: rtl: examining hci_ver=08 hci_rev=000c lmp_ver=08 lmp_subver=8821
+[  332.245226] Bluetooth: hci0: RTL: rom_version status=0 version=1
+[  332.245261] Bluetooth: hci0: RTL: rtl: loading rtl_bt/rtl8821c_fw.bin
+[  332.245673] Bluetooth: hci0: RTL: rtl: loading rtl_bt/rtl8821c_config.bin
+[  332.245955] Bluetooth: hci0: RTL: cfg_sz 10, total sz 34926
+[  334.379717] Bluetooth: hci0 command 0xfc20 tx timeout
+[  342.375746] Bluetooth: hci0: RTL: download fw command failed (-110)
+[  763.709214] rtk_btusb: Realtek Bluetooth USB driver module init, version 4.1.5
+[  765.488646] Bluetooth: hci0 command 0x1001 tx timeout
+[  773.480484] Bluetooth: hci0: RTL: HCI_OP_READ_LOCAL_VERSION failed (-110)
+[  775.488434] Bluetooth: hci0 command 0x1001 tx timeout
+[  783.480324] Bluetooth: hci0: RTL: HCI_OP_READ_LOCAL_VERSION failed (-110)
+------------------------------------------
+--- PULSEAUDIO ---
+Default Sink: auto_null
+0	auto_null	module-null-sink.c	s16le 2ch 44100Hz	IDLE
+------------------------------------------
+--- RAW LE SCAN ---
+--- END AUDIT ---
+--- AUTO-DIAGNOSTIC START Sat Apr 18 08:25:41 PM PDT 2026 ---
+--- AUTO-DIAGNOSTIC START Sat Apr 18 08:26:29 PM PDT 2026 ---
+sudo: /sbin/hciconfig: command not found
+HCI Status: 
+--- AUTO-DIAGNOSTIC END Sat Apr 18 08:26:55 PM PDT 2026 ---
