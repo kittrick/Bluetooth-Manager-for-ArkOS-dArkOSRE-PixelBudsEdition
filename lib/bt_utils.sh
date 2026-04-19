@@ -1,5 +1,19 @@
-# -------------------------------------------------------
-# Read Last Audit: Auto-Scrolling Teleprompter
+# Initialize environment defaults if not provided
+: "${CURR_TTY:=/dev/tty1}"
+: "${T_BACKTITLE:=Bluetooth Manager}"
+: "${T_PWR_TITLE:=Power-Shift}"
+: "${T_SUCCESS:=Success}"
+: "${T_ERR_TITLE:=Error}"
+: "${T_READ_ERR:=Read Error}"
+: "${T_AUD_TITLE:=Audit Complete}"
+: "${T_AUD_MSG:=Audit saved.}"
+: "${T_RES_TITLE:=Restore WiFi}"
+: "${T_RES_MSG1:=Restoring...}"
+: "${T_RES_MSG2:=Done.}"
+: "${T_REPAIR_TITLE:=Repair Bluetooth}"
+: "${T_REPAIR_MSG:=Resetting...}"
+: "${T_REPAIR_DONE:=Repaired.}"
+
 # -------------------------------------------------------
 ReadAudit() {
     local LOG_FILE="/tmp/bt_audit.log"
