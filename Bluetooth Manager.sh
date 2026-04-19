@@ -1688,7 +1688,20 @@ ReadAudit() {
 # -------------------------------------------------------
 # Power-Shift: Kill Wi-Fi, Force Bluetooth
 # -------------------------------------------------------
-        sudo modprobe btusb 2>/dev/null
+# -------------------------------------------------------
+# Toggle Driver (Generic vs Realtek)
+# -------------------------------------------------------
+ToggleDriver() {
+    local CURRENT_DRV=$(lsmod | grep -oE "rtk_btusb|btusb" | head -n1)
+    local NEXT_DRV="rtk_btusb"
+    [ "$CURRENT_DRV" == "rtk_btusb" ] && NEXT_DRV="btusb"
+    
+    dialog --backtitle "$T_BACKTITLE" --title "$T_DRV_SW_TITLE" --infobox "$T_DRV_SW_MSG $NEXT_DRV $T_DRV_SW_MSG2" 5 50 > "$CURR_TTY"
+    
+    sudo /sbin/modprobe -r rtk_btusb btusb 2>/dev/null
+    if ! sudo /sbin/modprobe "$NEXT_DRV" 2>/dev/null; then
+        dialog --backtitle "$T_BACKTITLE" --title "$T_ERR_TITLE" --msgbox "$T_DRV_ERR" 7 50 > "$CURR_TTY"
+        sudo /sbin/modprobe btusb 2>/dev/null
         return
     fi
     
