@@ -2583,55 +2583,33 @@ ReadAudit() {
 # Power-Shift: Kill Wi-Fi, Force Bluetooth
 # -------------------------------------------------------
 PowerShiftBT() {
-    dialog --backtitle "$T_BACKTITLE" --title "$T_PWR_TITLE" --infobox "Performing autonomous diagnostic shift (20s). Wi-Fi will restore automatically." 6 50 > "$CURR_TTY"
+    dialog --backtitle "$T_BACKTITLE" --title "$T_PWR_TITLE" --infobox "Performing autonomous diagnostic shift (20s)." 6 50 > "$CURR_TTY"
     
-    # Start diagnostic log
-    echo "--- AUTO-DIAGNOSTIC START $(date) ---" >> "/home/ark/bt_audit.log"
-    
-    # 1. Stop services
+    # 1. Stop all services
     sudo systemctl stop bluetooth bluetooth-icon-updater bt-sink-switch bt-volume-monitor 2>/dev/null
     
-    # 2. Hard Unbind
-    if [ -e "/sys/bus/usb/drivers/usb/1-1" ]; then
-        echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/unbind > /dev/null
-        sleep 1
-    fi
-    
-    # 3. Blacklist Wi-Fi
-    echo "blacklist 8821cu" | sudo tee /etc/modprobe.d/bt_manager_wifi_block.conf > /dev/null
-    sudo /sbin/modprobe -r 8821cu 2>/dev/null
-    sudo /sbin/modprobe -r btusb rtk_btusb 2>/dev/null
-    
-    # 4. Re-bind
-    if [ -e "/sys/bus/usb/drivers/usb/1-1" ]; then
-        echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/bind > /dev/null
-        sleep 2
-    fi
-    
-    # 5. Load BT Driver
-    sudo /sbin/modprobe rtk_btusb 2>>"/home/ark/bt_audit.log"
+    # 2. Kill the kernel modules entirely
+    sudo modprobe -r btusb 2>/dev/null
+    sudo modprobe -r rtk_btusb 2>/dev/null
+    sudo modprobe -r 8821cu 2>/dev/null
     sleep 2
     
-    # 6. Force Bind (Diagnostics)
-    if [ -e "/sys/bus/usb/drivers/rtk_btusb/1-1:1.2" ]; then
-        echo "1-1:1.2" | sudo tee /sys/bus/usb/drivers/rtk_btusb/bind >> "/home/ark/bt_audit.log" 2>&1
+    # 3. Force binding rtk_btusb
+    sudo modprobe rtk_btusb 2>>"/home/ark/bt_audit.log"
+    sleep 3
+    
+    # 4. Bring up the interface using the system path
+    if command -v hciconfig >/dev/null; then
+        sudo hciconfig hci0 up 2>>"/home/ark/bt_audit.log"
     fi
-    
-    # 7. Bring up interface
-    sudo /sbin/hciconfig hci0 up 2>>"/home/ark/bt_audit.log"
     sleep 2
-    echo "HCI Status: $(hciconfig hci0)" >> "/home/ark/bt_audit.log"
     
-    # 8. Wait for testing
-    sleep 20
+    # 5. Restart services
+    sudo systemctl start bluetooth
+    sleep 5
+    sudo bluetoothctl power on
     
-    # 9. Restore Wi-Fi automatically
-    sudo rm -f /etc/modprobe.d/bt_manager_wifi_block.conf
-    sudo /sbin/modprobe -r rtk_btusb 2>/dev/null
-    sudo /sbin/modprobe 8821cu 2>/dev/null
-    
-    echo "--- AUTO-DIAGNOSTIC END $(date) ---" >> "/home/ark/bt_audit.log"
-    dialog --backtitle "$T_BACKTITLE" --title "$T_SUCCESS" --msgbox "Diagnostic shift complete. Check bt_audit.log." 8 50 > "$CURR_TTY"
+    dialog --backtitle "$T_BACKTITLE" --title "$T_SUCCESS" --msgbox "Shift complete. Check bt_audit.log." 8 50 > "$CURR_TTY"
 }
 
 # -------------------------------------------------------
