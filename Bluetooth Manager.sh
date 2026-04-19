@@ -6,7 +6,7 @@ if [[ "$1" == "--nogui" ]]; then
     shift
 fi
 if [[ "$HEADLESS" == "true" ]]; then
-    dialog() { echo "DIALOG: $@"; }
+    dialog() { if [[ "$*" == *"--msgbox"* ]] || [[ "$*" == *"--infobox"* ]]; then echo "DIALOG: $@"; fi; }
     export -f dialog
 fi
 
