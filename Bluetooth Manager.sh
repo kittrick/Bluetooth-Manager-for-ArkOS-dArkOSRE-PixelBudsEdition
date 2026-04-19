@@ -71,9 +71,11 @@ printf "$T_STARTING" > "$CURR_TTY"
 sleep 0.1
 
 # Gamepad Setup
-export SDL_GAMECONTROLLERCONFIG_FILE="/opt/inttools/gamecontrollerdb.txt"
-sudo chmod 666 /dev/uinput
-StartGPTKeyb
+if [[ "$HEADLESS" != "true" ]]; then
+    export SDL_GAMECONTROLLERCONFIG_FILE="/opt/inttools/gamecontrollerdb.txt"
+    sudo chmod 666 /dev/uinput
+    StartGPTKeyb
+fi
 
 printf "\033[H\033[2J" > "$CURR_TTY"
 dialog --clear
