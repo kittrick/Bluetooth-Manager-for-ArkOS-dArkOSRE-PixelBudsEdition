@@ -586,3 +586,67 @@ UninstallerMenu() {
         esac
     done
 }
+
+PowerShiftBT() {
+    dialog --backtitle "$T_BACKTITLE" --title "$T_PWR_TITLE" --infobox "Performing autonomous diagnostic shift (20s)." 6 50 > "$CURR_TTY"
+    
+    # 1. Stop all services
+    sudo systemctl stop bluetooth bluetooth-icon-updater bt-sink-switch bt-volume-monitor 2>/dev/null
+    
+    # 2. Kill the kernel modules entirely
+    sudo /sbin/modprobe -r btusb 2>/dev/null
+    sudo /sbin/modprobe -r rtk_btusb 2>/dev/null
+    sudo /sbin/modprobe -r 8821cu 2>/dev/null
+    sleep 2
+    
+    # 3. Force binding rtk_btusb
+    sudo /sbin/modprobe rtk_btusb 2>>"/home/ark/bt_audit.log"
+
+    # Wait for the driver to actually bind
+    echo "Waiting for rtk_btusb bind..." >> "/home/ark/bt_audit.log"
+    for i in {1..10}; do
+        if lsmod | grep -q "rtk_btusb"; then
+            echo "rtk_btusb loaded successfully." >> "/home/ark/bt_audit.log"
+            break
+        fi
+        sleep 1
+    done
+    sleep 3
+    
+    # 4. Bring up the interface
+    if command -v hciconfig >/dev/null; then
+        sudo hciconfig hci0 up 2>>"/home/ark/bt_audit.log"
+    fi
+    sleep 2
+    
+    # 5. Restart services
+    sudo systemctl start bluetooth
+    sleep 10
+    sudo bluetoothctl power on
+    
+    dialog --backtitle "$T_BACKTITLE" --title "$T_SUCCESS" --msgbox "Shift complete. Check bt_audit.log." 8 50 > "$CURR_TTY"
+}
+RestoreWiFi() {
+    dialog --backtitle "$T_BACKTITLE" --title "$T_RES_TITLE" --infobox "$T_RES_MSG1" 5 40 > "$CURR_TTY"
+    
+    # 1. Kill Bluetooth processes and drivers
+    sudo bluetoothctl power off > /dev/null 2>&1
+    sudo systemctl stop bluetooth bluetooth-icon-updater bt-sink-switch bt-volume-monitor 2>/dev/null
+    sudo /sbin/modprobe -r rtk_btusb btusb 2>/dev/null
+    sleep 1
+    
+    # 2. Forceful USB Reset to clear any BT firmware hangs
+    if [ -e "/sys/bus/usb/drivers/usb/1-1" ]; then
+        echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/unbind > /dev/null
+        sleep 1
+        echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/bind > /dev/null
+        sleep 1
+    fi
+    
+    # 3. Reload Wi-Fi Driver
+    sudo /sbin/modprobe 8821cu
+    
+    # 4. Give the system a moment to find the network
+    sleep 2
+    dialog --backtitle "$T_BACKTITLE" --title "$T_RES_TITLE" --msgbox "$T_RES_MSG2" 8 40 > "$CURR_TTY"
+}

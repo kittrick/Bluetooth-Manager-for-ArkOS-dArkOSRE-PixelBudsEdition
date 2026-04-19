@@ -50,28 +50,10 @@ ASOUND
 # -------------------------------------------------------
 # Exit the script
 # -------------------------------------------------------
-ExitMenu() {
-    trap - EXIT
-    printf "\033[H\033[2J" > "$CURR_TTY"
-    printf "\e[?25h" > "$CURR_TTY"
-    StopGPTKeyb
-    if [[ ! -e "/dev/input/by-path/platform-odroidgo2-joypad-event-joystick" ]]; then
-        [ -n "$ORIGINAL_FONT" ] && setfont "$ORIGINAL_FONT"
-    fi
-
-    exit 0
-}
 
 # -------------------------------------------------------
 # Dependency Check
 # -------------------------------------------------------
-CheckDeps() {
-    [ -f "$INSTALLED_FLAG" ] && return
-    
-    local REQUIRED_PACKAGES=("bluez" "pulseaudio-module-bluetooth" "pulseaudio" "alsa-utils" "evtest" "libasound2-plugins" "dbus-user-session" "dbus-x11" "bluez-tools")
-    local MISSING_PACKAGES=()
-    
-    for pkg in "${REQUIRED_PACKAGES[@]}"; do
         if ! dpkg -l "$pkg" 2>/dev/null | grep -q "^ii"; then MISSING_PACKAGES+=("$pkg"); fi
     done
 
