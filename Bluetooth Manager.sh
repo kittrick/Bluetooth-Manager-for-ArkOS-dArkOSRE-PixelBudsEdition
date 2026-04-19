@@ -2595,8 +2595,19 @@ PowerShiftBT() {
     sleep 2
     
     # 3. Force binding rtk_btusb
-    sudo modprobe rtk_btusb 2>>"/home/ark/bt_audit.log"
+    sudo /sbin/modprobe rtk_btusb 2>>"/home/ark/bt_audit.log"
+
+    # Wait for the driver to actually bind to the interface
+    echo "Waiting for rtk_btusb bind..." >> "/home/ark/bt_audit.log"
+    for i in {1..10}; do
+        if lsmod | grep -q "rtk_btusb"; then
+            echo "rtk_btusb loaded successfully." >> "/home/ark/bt_audit.log"
+            break
+        fi
+        sleep 1
+    done
     sleep 3
+
     
     # 4. Bring up the interface using the system path
     if command -v hciconfig >/dev/null; then
