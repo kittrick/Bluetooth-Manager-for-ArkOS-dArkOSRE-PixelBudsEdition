@@ -2588,28 +2588,16 @@ PowerShiftBT() {
     # 1. Stop all Bluetooth services first
     sudo systemctl stop bluetooth bluetooth-icon-updater bt-sink-switch bt-volume-monitor 2>/dev/null
     
-    # 2. Unload ALL related drivers
-    sudo /sbin/modprobe -r 8821cu 2>/dev/null
-    sudo /sbin/modprobe -r rtk_btusb btusb 2>/dev/null
-    sleep 1
+    # 2. Unload standard drivers
+    sudo /sbin/modprobe -r btusb 2>/dev/null
+    sudo /sbin/modprobe -r rtk_btusb 2>/dev/null
+    sleep 2
     
-    # 3. Forceful USB Reset (Port 1-1 is standard for R36S OTG)
-    if [ -e "/sys/bus/usb/devices/1-1" ]; then
-        echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/unbind > /dev/null
-        sleep 1
-        echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/bind > /dev/null
-        sleep 1
-    fi
-
-    # 4. Force USB high-power mode
-    echo "on" | sudo tee /sys/bus/usb/devices/usb1/power/control 2>/dev/null
+    # 3. Reload Realtek driver to claim the interfaces
+    sudo /sbin/modprobe rtk_btusb
+    sleep 2
     
-    # 5. Load Realtek specific driver first, fallback to generic
-    if ! sudo modprobe rtk_btusb 2>/dev/null; then
-        sudo modprobe btusb
-    fi
-    
-    # 6. Restart services
+    # 4. Restart services
     sudo systemctl start bluetooth
     sleep 2
     sudo bluetoothctl power on
