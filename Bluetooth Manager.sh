@@ -64,8 +64,6 @@ fi
 # Display Management
 printf "\e[?25l" > "$CURR_TTY"
 dialog --clear
-StopGPTKeyb
-pgrep -f osk.py | xargs kill -9
 printf "\033[H\033[2J" > "$CURR_TTY"
 printf "$T_STARTING" > "$CURR_TTY"
 sleep 0.1
