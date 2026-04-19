@@ -83,7 +83,7 @@ PowerShiftBT() {
     
     # 5. Restart services
     sudo systemctl start bluetooth
-    sleep 5
+    sleep 10
     sudo bluetoothctl power on
     
     dialog --backtitle "$T_BACKTITLE" --title "$T_SUCCESS" --msgbox "Shift complete. Check bt_audit.log." 8 50 > "$CURR_TTY"
