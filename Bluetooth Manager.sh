@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Load external utilities
-source "$(dirname "$0")/lib/bt_utils.sh"
+export T_BACKTITLE CURR_TTY; source "$(dirname "$0")/lib/bt_utils.sh"
 
 #-------------------------------------#
 #           BT Manager 3.6            #

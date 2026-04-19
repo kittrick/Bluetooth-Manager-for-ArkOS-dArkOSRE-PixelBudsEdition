@@ -2,7 +2,7 @@
 # Read Last Audit: Auto-Scrolling Teleprompter
 # -------------------------------------------------------
 ReadAudit() {
-    local LOG_FILE="/home/ark/bt_audit.log"
+    local LOG_FILE="/tmp/bt_audit.log"
     local chunk_size=10
     local start_line=1
 
@@ -133,7 +133,7 @@ RepairStack() {
 # Silent Audit: Writes hardware state to a log file
 # -------------------------------------------------------
 RunAudit() {
-    local LOG_FILE="/home/ark/bt_audit.log"
+    local LOG_FILE="/tmp/bt_audit.log"
     local PA_CMD="sudo -u ark XDG_RUNTIME_DIR=/run/user/${ARK_UID} PULSE_SERVER=unix:/run/user/${ARK_UID}/pulse/native pactl"
     
     safe_log() {
