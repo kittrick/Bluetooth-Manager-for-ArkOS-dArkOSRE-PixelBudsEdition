@@ -220,10 +220,17 @@ T_REPAIR_DONE="Bluetooth stack has been repaired and restarted."
 # Start gamepad input
 # -------------------------------------------------------
 StartGPTKeyb() {
-    pkill -9 -f gptokeyb 2>/dev/null || true
-    if [ -n "$GPTOKEYB_PID" ]; then
-        kill "$GPTOKEYB_PID" 2>/dev/null
+    # Check if gptokeyb is running
+    local pid=$(pgrep -f gptokeyb)
+    if [ -n "$pid" ]; then
+        kill -9 $pid 2>/dev/null
     fi
+    
+    if [ -n "$GPTOKEYB_PID" ]; then
+        kill -9 "$GPTOKEYB_PID" 2>/dev/null
+        GPTOKEYB_PID=""
+    fi
+    
     sleep 0.1
     /opt/inttools/gptokeyb -1 "$0" -c "/opt/inttools/keys.gptk" > /dev/null 2>&1 &
     GPTOKEYB_PID=$!
