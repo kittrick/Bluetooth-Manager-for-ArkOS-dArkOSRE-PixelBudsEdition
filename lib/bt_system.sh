@@ -2,7 +2,6 @@
 # -------------------------------------------------------
 # System/Installer Functions
 # -------------------------------------------------------
-
 FixBluetoothConfig() {
     dialog --backtitle "$T_BACKTITLE" --title "$T_INFO" --infobox "\n$T_SYSTEM_FIX" 5 50 > "$CURR_TTY"
     REAL_BT_PATH=$(find /usr -name bluetoothd -type f -executable | head -n 1)

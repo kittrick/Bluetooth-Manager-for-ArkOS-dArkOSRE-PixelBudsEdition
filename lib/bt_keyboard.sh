@@ -1,3 +1,6 @@
+# -------------------------------------------------------
+# Keyboard Utilites
+# -------------------------------------------------------
 StartGPTKeyb() {
     # Check if gptokeyb is running
     local pid=$(pgrep -f gptokeyb)

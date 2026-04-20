@@ -1,4 +1,8 @@
 #!/bin/bash
+# -------------------------------------------------------
+# BT Audit Utilities
+# -------------------------------------------------------
+
 RunAudit() {
     local LOG_FILE="/tmp/bt_audit.log"
     echo "=== BT SYSTEM AUDIT: $(date) ===" > "$LOG_FILE"
@@ -13,4 +17,10 @@ ReadAudit() {
     local LOG_FILE="/tmp/bt_audit.log"
     if [ ! -f "$LOG_FILE" ]; then dialog --msgbox "No audit found." 5 30 > "$CURR_TTY"; return; fi
     dialog --backtitle "$T_BACKTITLE" --title "Audit Log" --textbox "$LOG_FILE" 20 60 > "$CURR_TTY"
+}
+
+SystemSetup() {
+    dialog --backtitle "$T_BACKTITLE" --title "$T_SETUP_TITLE" --infobox "$T_SETUP_MSG" 6 50 > "$CURR_TTY"
+    FixBluetoothConfig
+    dialog --backtitle "$T_BACKTITLE" --title "$T_SETUP_DONE_TITLE" --msgbox "$T_SETUP_DONE_MSG" 12 55 > "$CURR_TTY"
 }

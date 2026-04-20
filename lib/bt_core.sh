@@ -1,3 +1,8 @@
+#!/bin/bash
+# -------------------------------------------------------
+# Core Bluetooth Functions
+# -------------------------------------------------------
+
 GetPowerStatus() {
     # Check if Bluetooth daemon is active
     if ! systemctl is-active --quiet bluetooth; then return 1; fi
@@ -9,6 +14,7 @@ GetPowerStatus() {
     if ! echo "show" | bluetoothctl | sed 's/\x1b\[[0-9;]*m//g' | grep -q "Powered: yes"; then return 1; fi
     return 0
 }
+
 GetConnectedName() {
     local found_name=""
     found_name=$(timeout 3 bluetoothctl devices 2>/dev/null | while read -r _ mac name; do
@@ -19,6 +25,7 @@ GetConnectedName() {
     done)
     echo "${found_name:-$T_NONE}"
 }
+
 EnsurePermissions() {
     if [ ! -f "$INSTALLED_FLAG" ]; then
         FixBluetoothConfig

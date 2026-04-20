@@ -1,3 +1,5 @@
+#!/bin/bash
+# -------------------------------------------------------
 # Route ALSA through PulseAudio (for Bluetooth audio)
 # -------------------------------------------------------
 SetAsoundPulse() {
