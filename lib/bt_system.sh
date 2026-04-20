@@ -32,27 +32,29 @@ PowerShiftBT() {
     local LOG="/tmp/bt_audit.log"
     echo "--- POWER SHIFT START $(date) ---" >> "$LOG"
 
+    # 0. Clear dmesg for a clean hardware trace
+    sudo dmesg -C
+
     # 1. Stop all Bluetooth services
     sudo systemctl stop bluetooth bluetooth-icon-updater bt-sink-switch bt-volume-monitor 2>/dev/null
     
-    # 2. Create a temporary hard blacklist to prevent driver fighting
-    echo "blacklist 8821cu" | sudo tee /etc/modprobe.d/bt_temp_block.conf > /dev/null
-    echo "blacklist btusb" | sudo tee -a /etc/modprobe.d/bt_temp_block.conf > /dev/null
-    
-    # 3. Kill the kernel modules
+    # 2. Kill the kernel modules
     sudo /sbin/modprobe -r 8821cu 2>/dev/null
     sudo /sbin/modprobe -r btusb 2>/dev/null
     sudo /sbin/modprobe -r rtk_btusb 2>/dev/null
     sleep 2
     
-    # 4. Explicitly unbind all drivers from the dongle interfaces (1-1:1.0, 1.1, 1.2)
-    # We use a more robust search for the unbind files
-    for i in 0 1 2; do
-        local target="1-1:1.$i"
+    # 3. Force btusb to ignore this device ID (Realtek 8821CU: 0bda c820)
+    # This prevents the kernel from re-grabbing it before rtk_btusb can.
+    if [ -d "/sys/bus/usb/drivers/btusb" ]; then
+        echo "0bda c820" | sudo tee /sys/bus/usb/drivers/btusb/remove_id >/dev/null 2>&1
+    fi
+
+    # 4. Explicitly unbind all drivers from the dongle interfaces
+    for target in "1-1:1.0" "1-1:1.1" "1-1:1.2"; do
         find /sys/bus/usb/drivers/ -name "$target" | while read -r drv_iface; do
-            local drv_dir=$(dirname "$drv_iface")
-            echo "Unbinding $target from $(basename $drv_dir)" >> "$LOG"
-            echo "$target" | sudo tee "$drv_dir/unbind" >/dev/null 2>&1
+            echo "Unbinding $target from $(basename $(dirname $drv_iface))" >> "$LOG"
+            echo "$target" | sudo tee "$(dirname $drv_iface)/unbind" >/dev/null 2>&1
         done
     done
     sleep 2
@@ -71,23 +73,21 @@ PowerShiftBT() {
     sudo systemctl start bluetooth
     sleep 5
     
-    # 8. Check for success and trigger ES restart if Bluetooth is now ON
+    # 8. Log the hardware results
+    echo "--- DMESG LOG FROM SHIFT ---" >> "$LOG"
+    dmesg | grep -iE "bluetooth|hci0|rtl" >> "$LOG"
+    echo "HCI Status: $(hciconfig hci0 2>/dev/null)" >> "$LOG"
+
+    # 9. Check for success and trigger ES restart
     if GetPowerStatus; then
-        echo "SUCCESS: Bluetooth is ON. Restarting EmulationStation..." >> "$LOG"
+        echo "SUCCESS: Bluetooth is ON." >> "$LOG"
         sudo bluetoothctl power on >> "$LOG" 2>&1
-        
-        # Trigger EmulationStation restart to refresh UI
         sudo systemctl restart emulationstation
-        
         dialog --backtitle "$T_BACKTITLE" --title "$T_SUCCESS" --msgbox "Bluetooth Enabled! EmulationStation is restarting." 8 50 > "$CURR_TTY"
     else
         echo "FAILURE: Bluetooth still OFF." >> "$LOG"
-        # Cleanup blacklist on failure so user isn't stuck
-        sudo rm -f /etc/modprobe.d/bt_temp_block.conf
-        dialog --backtitle "$T_BACKTITLE" --title "$T_FAILED" --msgbox "Shift failed. Hardware did not initialize. Check bt_audit.log." 8 50 > "$CURR_TTY"
+        dialog --backtitle "$T_BACKTITLE" --title "$T_FAILED" --msgbox "Shift failed. Hardware timeout. Check bt_audit.log." 8 50 > "$CURR_TTY"
     fi
-    
-    echo "--- POWER SHIFT END ---" >> "$LOG"
 }
 
 RestoreWiFi() {
