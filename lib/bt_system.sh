@@ -27,41 +27,39 @@ ToggleBT() {
 }
 
 PowerShiftBT() {
-    dialog --backtitle "$T_BACKTITLE" --title "$T_PWR_TITLE" --infobox "Performing surgical hardware shift (20s)." 6 50 > "$CURR_TTY"
+    dialog --backtitle "$T_BACKTITLE" --title "$T_PWR_TITLE" --infobox "Performing surgical hardware shift (20s).\nES will restart if successful." 6 50 > "$CURR_TTY"
     
     local LOG="/tmp/bt_audit.log"
     echo "--- POWER SHIFT START $(date) ---" >> "$LOG"
 
-    # 1. Stop all services
+    # 1. Stop all Bluetooth services
     sudo systemctl stop bluetooth bluetooth-icon-updater bt-sink-switch bt-volume-monitor 2>/dev/null
     
-    # 2. Kill the kernel modules
-    sudo /sbin/modprobe -r btusb rtk_btusb 8821cu 2>/dev/null
+    # 2. Create a temporary hard blacklist to prevent driver fighting
+    echo "blacklist 8821cu" | sudo tee /etc/modprobe.d/bt_temp_block.conf > /dev/null
+    echo "blacklist btusb" | sudo tee -a /etc/modprobe.d/bt_temp_block.conf > /dev/null
+    
+    # 3. Kill the kernel modules
+    sudo /sbin/modprobe -r 8821cu 2>/dev/null
+    sudo /sbin/modprobe -r btusb 2>/dev/null
+    sudo /sbin/modprobe -r rtk_btusb 2>/dev/null
     sleep 2
     
-    # 3. Explicitly unbind all drivers from the dongle interfaces
-    for iface in "1-1:1.0" "1-1:1.1" "1-1:1.2"; do
-        # Search all possible driver directories for a bind to this iface
-        for drv_path in /sys/bus/usb/drivers/*/; do
-            if [ -e "${drv_path}${iface}" ]; then
-                echo "Unbinding ${iface} from $(basename ${drv_path})" >> "$LOG"
-                echo "${iface}" | sudo tee "${drv_path}unbind" >/dev/null 2>&1
-            fi
+    # 4. Explicitly unbind all drivers from the dongle interfaces (1-1:1.0, 1.1, 1.2)
+    # We use a more robust search for the unbind files
+    for i in 0 1 2; do
+        local target="1-1:1.$i"
+        find /sys/bus/usb/drivers/ -name "$target" | while read -r drv_iface; do
+            local drv_dir=$(dirname "$drv_iface")
+            echo "Unbinding $target from $(basename $drv_dir)" >> "$LOG"
+            echo "$target" | sudo tee "$drv_dir/unbind" >/dev/null 2>&1
         done
     done
-    sleep 1
-
-    # 4. Load the Realtek Bluetooth Driver
-    sudo /sbin/modprobe rtk_btusb 2>>"$LOG"
     sleep 2
-    
-    # 5. Force bind the first two interfaces to rtk_btusb (The BT interfaces)
-    for iface in "1-1:1.0" "1-1:1.1"; do
-        if [ -d "/sys/bus/usb/drivers/rtk_btusb" ] && [ ! -e "/sys/bus/usb/drivers/rtk_btusb/${iface}" ]; then
-            echo "Force binding ${iface} to rtk_btusb" >> "$LOG"
-            echo "${iface}" | sudo tee /sys/bus/usb/drivers/rtk_btusb/bind >/dev/null 2>&1
-        fi
-    done
+
+    # 5. Load ONLY the Realtek Bluetooth Driver
+    sudo /sbin/modprobe rtk_btusb 2>>"$LOG"
+    sleep 3
     
     # 6. Bring up the interface
     if command -v hciconfig >/dev/null; then
@@ -69,15 +67,27 @@ PowerShiftBT() {
     fi
     sleep 2
     
-    # 7. Restart services
+    # 7. Start services
     sudo systemctl start bluetooth
     sleep 5
-    sudo bluetoothctl power on >> "$LOG" 2>&1
     
-    echo "HCI Status after shift: $(hciconfig hci0 2>/dev/null)" >> "$LOG"
+    # 8. Check for success and trigger ES restart if Bluetooth is now ON
+    if GetPowerStatus; then
+        echo "SUCCESS: Bluetooth is ON. Restarting EmulationStation..." >> "$LOG"
+        sudo bluetoothctl power on >> "$LOG" 2>&1
+        
+        # Trigger EmulationStation restart to refresh UI
+        sudo systemctl restart emulationstation
+        
+        dialog --backtitle "$T_BACKTITLE" --title "$T_SUCCESS" --msgbox "Bluetooth Enabled! EmulationStation is restarting." 8 50 > "$CURR_TTY"
+    else
+        echo "FAILURE: Bluetooth still OFF." >> "$LOG"
+        # Cleanup blacklist on failure so user isn't stuck
+        sudo rm -f /etc/modprobe.d/bt_temp_block.conf
+        dialog --backtitle "$T_BACKTITLE" --title "$T_FAILED" --msgbox "Shift failed. Hardware did not initialize. Check bt_audit.log." 8 50 > "$CURR_TTY"
+    fi
+    
     echo "--- POWER SHIFT END ---" >> "$LOG"
-    
-    dialog --backtitle "$T_BACKTITLE" --title "$T_SUCCESS" --msgbox "Shift complete. Check bt_audit.log." 8 50 > "$CURR_TTY"
 }
 
 RestoreWiFi() {
