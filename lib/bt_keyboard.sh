@@ -58,6 +58,10 @@ ScanAndConnect() {
     # Use 'transport auto' to ensure both Classic and LE devices are found
     bluetoothctl set-scan-filter transport auto > /dev/null 2>&1
     
+    # NEW: Also trigger a background LE discovery specifically for keyboards
+    ( sleep 2; bluetoothctl scan on ) &
+    LE_SCAN_PID=$!
+
     SCAN_TIME=15
     bluetoothctl --timeout $SCAN_TIME scan on > /tmp/bt_scan_results.txt 2>&1 &
     SCAN_PID=$!
@@ -65,7 +69,7 @@ ScanAndConnect() {
     for ((i=0; i<=SCAN_TIME*10; i++)); do
         PERCENT=$(( i * 100 / (SCAN_TIME * 10) ))
         if [ $i -lt 30 ]; then MSG="$T_SCAN_INIT"; 
-        elif [ $i -lt $((SCAN_TIME*5)) ]; then MSG="$T_SCAN_PROCESS (Classic + LE)"; 
+        elif [ $i -lt $((SCAN_TIME*5)) ]; then MSG="$T_SCAN_PROCESS (Deep Scan)"; 
         else MSG="$T_SCAN_RESOLV"; fi
         
         echo "$PERCENT"
@@ -73,6 +77,7 @@ ScanAndConnect() {
         sleep 0.1
     done
     wait $SCAN_PID
+    kill $LE_SCAN_PID 2>/dev/null
     bluetoothctl scan off > /dev/null 2>&1
     echo "100"
     ) | dialog --backtitle "$T_BACKTITLE" --title "$T_SCAN_TITLE" --gauge "$T_SCAN_START" 6 45 0 > "$CURR_TTY"

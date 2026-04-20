@@ -59,14 +59,16 @@ export DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus
 if [ -f "$ES_CONF" ]; then
     ES_DETECTED=$(grep "name=\"Language\"" "$ES_CONF" | grep -o 'value="[^"]*"' | cut -d '"' -f 2)
     [ -n "$ES_DETECTED" ] && SYSTEM_LANG="$ES_DETECTED"
-fi
-
 # Display Management
-printf "\e[?25l" > "$CURR_TTY"
-dialog --clear
-printf "\033[H\033[2J" > "$CURR_TTY"
-printf "$T_STARTING" > "$CURR_TTY"
-sleep 0.1
+if [[ "$HEADLESS" != "true" ]]; then
+    printf "\e[?25l" > "$CURR_TTY"
+    dialog --clear
+    # Cleanly kill OSK if it exists
+    pkill -f osk.py 2>/dev/null
+    printf "\033[H\033[2J" > "$CURR_TTY"
+    printf "$T_STARTING" > "$CURR_TTY"
+    sleep 0.1
+fi
 
 # Gamepad Setup
 if [[ "$HEADLESS" != "true" ]]; then
@@ -75,8 +77,41 @@ if [[ "$HEADLESS" != "true" ]]; then
     StartGPTKeyb
 fi
 
+# Headless Menu Loop
+if [[ "$HEADLESS" == "true" ]]; then
+    echo "--- Headless Mode Active ---"
+    while true; do
+        echo ""
+        echo "1) Toggle BT      2) Scan (Deep)     3) Disconnect"
+        echo "4) Known Dev      5) Forget Dev      6) Toggle Drv"
+        echo "7) Run Audit      8) Play Chime      9) Read Audit"
+        echo "10) Power-Shift   11) Restore WiFi   12) System Setup"
+        echo "13) Update        14) Repair Stack   15) Exit"
+        read -p "Select an option: " choice
+        case $choice in
+            1) ToggleBT ;;
+            2) ScanAndConnect ;;
+            3) DisconnectProcess ;;
+            4) ListKnownAndConnect ;;
+            5) DeleteDevice ;;
+            6) ToggleDriver ;;
+            7) RunAudit ;;
+            8) PlayTestChime ;;
+            9) ReadAudit ;;
+            10) PowerShiftBT ;;
+            11) RestoreWiFi ;;
+            12) SystemSetup ;;
+            13) UpdateScript ;;
+            14) RepairStack ;;
+            15) exit 0 ;;
+            *) echo "Invalid choice." ;;
+        esac
+    done
+fi
+
 printf "\033[H\033[2J" > "$CURR_TTY"
 dialog --clear
 trap ExitMenu EXIT
 
 MainMenu
+
