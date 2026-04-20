@@ -28,15 +28,58 @@ ToggleBT() {
 
 PowerShiftBT() {
     dialog --backtitle "$T_BACKTITLE" --title "$T_PWR_TITLE" --infobox "Performing autonomous diagnostic shift (20s)." 6 50 > "$CURR_TTY"
+    
+    local LOG="/tmp/bt_audit.log"
+    echo "--- POWER SHIFT START $(date) ---" >> "$LOG"
+
+    # 1. Stop all services
     sudo systemctl stop bluetooth bluetooth-icon-updater bt-sink-switch bt-volume-monitor 2>/dev/null
+    
+    # 2. Kill the kernel modules entirely
     sudo /sbin/modprobe -r btusb rtk_btusb 8821cu 2>/dev/null
     sleep 2
-    sudo /sbin/modprobe rtk_btusb 2>>"/tmp/bt_audit.log"
-    sleep 5
-    if command -v hciconfig >/dev/null; then sudo hciconfig hci0 up 2>>"/tmp/bt_audit.log"; fi
+    
+    # 3. Handle specific unbind for RTL8821CU (Bus 001, Port 1 is standard for R36S)
+    # We unbind both potentially active drivers from the known interfaces
+    for i in 0 1 2; do
+        if [ -e "/sys/bus/usb/drivers/btusb/1-1:1.$i" ]; then
+            echo "Unbinding 1-1:1.$i from btusb" >> "$LOG"
+            echo "1-1:1.$i" | sudo tee /sys/bus/usb/drivers/btusb/unbind >/dev/null 2>&1
+        fi
+        if [ -e "/sys/bus/usb/drivers/rtl8821cu/1-1:1.$i" ]; then
+            echo "Unbinding 1-1:1.$i from rtl8821cu" >> "$LOG"
+            echo "1-1:1.$i" | sudo tee /sys/bus/usb/drivers/rtl8821cu/unbind >/dev/null 2>&1
+        fi
+    done
+    sleep 1
+
+    # 4. Load the Realtek Bluetooth Driver
+    sudo /sbin/modprobe rtk_btusb 2>>"$LOG"
+    sleep 2
+    
+    # 5. Manually bind the interfaces to rtk_btusb if they didn't auto-bind
+    for i in 0 1; do
+        if [ ! -e "/sys/bus/usb/drivers/rtk_btusb/1-1:1.$i" ]; then
+            echo "Force binding 1-1:1.$i to rtk_btusb" >> "$LOG"
+            echo "1-1:1.$i" | sudo tee /sys/bus/usb/drivers/rtk_btusb/bind >/dev/null 2>&1
+        fi
+    done
+    
+    # 6. Bring up the interface
+    if command -v hciconfig >/dev/null; then
+        sudo hciconfig hci0 up 2>>"$LOG"
+        sudo hciconfig hci0 sscan 2>>"$LOG"
+    fi
+    sleep 2
+    
+    # 7. Restart services
     sudo systemctl start bluetooth
     sleep 5
-    sudo bluetoothctl power on
+    sudo bluetoothctl power on >> "$LOG" 2>&1
+    
+    echo "HCI Status after shift: $(hciconfig hci0 2>/dev/null)" >> "$LOG"
+    echo "--- POWER SHIFT END ---" >> "$LOG"
+    
     dialog --backtitle "$T_BACKTITLE" --title "$T_SUCCESS" --msgbox "Shift complete. Check bt_audit.log." 8 50 > "$CURR_TTY"
 }
 
