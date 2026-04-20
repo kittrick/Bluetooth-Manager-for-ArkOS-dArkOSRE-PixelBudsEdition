@@ -59,6 +59,7 @@ export DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus
 if [ -f "$ES_CONF" ]; then
     ES_DETECTED=$(grep "name=\"Language\"" "$ES_CONF" | grep -o 'value="[^"]*"' | cut -d '"' -f 2)
     [ -n "$ES_DETECTED" ] && SYSTEM_LANG="$ES_DETECTED"
+fi
 # Display Management
 if [[ "$HEADLESS" != "true" ]]; then
     printf "\e[?25l" > "$CURR_TTY"
