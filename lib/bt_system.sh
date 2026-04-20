@@ -27,7 +27,7 @@ ToggleBT() {
 }
 
 PowerShiftBT() {
-    dialog --backtitle "$T_BACKTITLE" --title "$T_PWR_TITLE" --infobox "Performing autonomous diagnostic shift (20s)." 6 50 > "$CURR_TTY"
+    dialog --backtitle "$T_BACKTITLE" --title "$T_PWR_TITLE" --infobox "Performing surgical hardware shift (20s)." 6 50 > "$CURR_TTY"
     
     local LOG="/tmp/bt_audit.log"
     echo "--- POWER SHIFT START $(date) ---" >> "$LOG"
@@ -35,21 +35,19 @@ PowerShiftBT() {
     # 1. Stop all services
     sudo systemctl stop bluetooth bluetooth-icon-updater bt-sink-switch bt-volume-monitor 2>/dev/null
     
-    # 2. Kill the kernel modules entirely
+    # 2. Kill the kernel modules
     sudo /sbin/modprobe -r btusb rtk_btusb 8821cu 2>/dev/null
     sleep 2
     
-    # 3. Handle specific unbind for RTL8821CU (Bus 001, Port 1 is standard for R36S)
-    # We unbind both potentially active drivers from the known interfaces
-    for i in 0 1 2; do
-        if [ -e "/sys/bus/usb/drivers/btusb/1-1:1.$i" ]; then
-            echo "Unbinding 1-1:1.$i from btusb" >> "$LOG"
-            echo "1-1:1.$i" | sudo tee /sys/bus/usb/drivers/btusb/unbind >/dev/null 2>&1
-        fi
-        if [ -e "/sys/bus/usb/drivers/rtl8821cu/1-1:1.$i" ]; then
-            echo "Unbinding 1-1:1.$i from rtl8821cu" >> "$LOG"
-            echo "1-1:1.$i" | sudo tee /sys/bus/usb/drivers/rtl8821cu/unbind >/dev/null 2>&1
-        fi
+    # 3. Explicitly unbind all drivers from the dongle interfaces
+    for iface in "1-1:1.0" "1-1:1.1" "1-1:1.2"; do
+        # Search all possible driver directories for a bind to this iface
+        for drv_path in /sys/bus/usb/drivers/*/; do
+            if [ -e "${drv_path}${iface}" ]; then
+                echo "Unbinding ${iface} from $(basename ${drv_path})" >> "$LOG"
+                echo "${iface}" | sudo tee "${drv_path}unbind" >/dev/null 2>&1
+            fi
+        done
     done
     sleep 1
 
@@ -57,18 +55,17 @@ PowerShiftBT() {
     sudo /sbin/modprobe rtk_btusb 2>>"$LOG"
     sleep 2
     
-    # 5. Manually bind the interfaces to rtk_btusb if they didn't auto-bind
-    for i in 0 1; do
-        if [ ! -e "/sys/bus/usb/drivers/rtk_btusb/1-1:1.$i" ]; then
-            echo "Force binding 1-1:1.$i to rtk_btusb" >> "$LOG"
-            echo "1-1:1.$i" | sudo tee /sys/bus/usb/drivers/rtk_btusb/bind >/dev/null 2>&1
+    # 5. Force bind the first two interfaces to rtk_btusb (The BT interfaces)
+    for iface in "1-1:1.0" "1-1:1.1"; do
+        if [ -d "/sys/bus/usb/drivers/rtk_btusb" ] && [ ! -e "/sys/bus/usb/drivers/rtk_btusb/${iface}" ]; then
+            echo "Force binding ${iface} to rtk_btusb" >> "$LOG"
+            echo "${iface}" | sudo tee /sys/bus/usb/drivers/rtk_btusb/bind >/dev/null 2>&1
         fi
     done
     
     # 6. Bring up the interface
     if command -v hciconfig >/dev/null; then
         sudo hciconfig hci0 up 2>>"$LOG"
-        sudo hciconfig hci0 sscan 2>>"$LOG"
     fi
     sleep 2
     
