@@ -68,3 +68,58 @@ RepairStack() {
     sudo bluetoothctl power on
     dialog --backtitle "$T_BACKTITLE" --title "$T_SUCCESS" --msgbox "$T_REPAIR_DONE" 8 45 > "$CURR_TTY"
 }
+UninstallerMenu() {
+    while true; do
+        local CHOICE
+        CHOICE=$(dialog --output-fd 1 \
+            --backtitle "$T_BACKTITLE2" \
+            --title "$T_MAIN_TITLE2" \
+            --cancel-label "$T_BACK" \
+            --menu "$T_MENU_MSG" 10 50 2 \
+            1 "$T_RUN" \
+            2 "$T_FORGET_MENU" \
+            2>"$CURR_TTY")
+            [ $? -ne 0 ] && return
+
+        case $CHOICE in
+            1) RunUninstall ;;
+            2) ForgetAllDevices ;;
+            *) return ;;
+        esac
+    done
+}
+RunUninstall() {
+    # -- Force audio back to internal speaker ---
+    ForceInternalAudio
+    sleep 0.1
+
+    # --- Stop and Disable Services ---
+    infobox_gui "$T_STEP1_TITLE" "$T_STEP1_MSG"
+
+    for svc in bt-volume-monitor.service bt-sink-switch.service reset-alsa.service pulseaudio.service bluetooth.service; do
+        if systemctl is-active --quiet "$svc" 2>/dev/null; then
+            systemctl stop "$svc" 2>/dev/null
+        fi
+        if systemctl is-enabled --quiet "$svc" 2>/dev/null; then
+            systemctl disable "$svc" 2>/dev/null
+        fi
+    done
+
+    # --- Remove Installed Files ---
+    infobox_gui "$T_STEP2_TITLE" "$T_STEP2_MSG"
+
+    FILES_TO_REMOVE=(
+        "/usr/local/bin/bt-volume-monitor.sh"
+        "/usr/local/bin/bt-sink-switch.sh"
+        "/usr/local/bin/reset-alsa.sh"
+        "/etc/systemd/system/pulseaudio.service"
+        "/etc/systemd/system/bt-volume-monitor.service"
+        "/etc/systemd/system/bt-sink-switch.service"
+        "/etc/systemd/system/reset-alsa.service"
+        "/etc/udev/rules.d/99-input-event3.rules"
+        "/etc/pulse/default.pa"
+        "/etc/pulse/daemon.conf"
+        "$INSTALLED_FLAG"
+    )
+
+    for f in "${FILES_TO_REMOVE[@]}"; do

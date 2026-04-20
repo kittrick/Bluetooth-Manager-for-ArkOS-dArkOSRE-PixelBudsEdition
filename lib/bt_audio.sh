@@ -1,4 +1,3 @@
-#!/bin/bash
 # -------------------------------------------------------
 # Route ALSA through PulseAudio (for Bluetooth audio)
 # -------------------------------------------------------
@@ -47,92 +46,6 @@ ctl.!default { type hw card 0 }
 ASOUND
     fi
     chown ark:ark "$ASOUNDRC"
-}
-
-# -------------------------------------------------------
-# Exit the script
-# -------------------------------------------------------
-ExitMenu() {
-    trap - EXIT
-    printf "\033[H\033[2J" > "$CURR_TTY"
-    printf "\e[?25h" > "$CURR_TTY"
-    StopGPTKeyb
-    if [[ ! -e "/dev/input/by-path/platform-odroidgo2-joypad-event-joystick" ]]; then
-        [ -n "$ORIGINAL_FONT" ] && setfont "$ORIGINAL_FONT"
-    fi
-
-    exit 0
-}
-
-# -------------------------------------------------------
-# Dependency Check
-# -------------------------------------------------------
-CheckDeps() {
-    [ -f "$INSTALLED_FLAG" ] && return
-    
-    local REQUIRED_PACKAGES=("bluez" "pulseaudio-module-bluetooth" "pulseaudio" "alsa-utils" "evtest" "libasound2-plugins" "dbus-user-session" "dbus-x11" "bluez-tools")
-    local MISSING_PACKAGES=()
-    
-    for pkg in "${REQUIRED_PACKAGES[@]}"; do
-        if ! dpkg -l "$pkg" 2>/dev/null | grep -q "^ii"; then MISSING_PACKAGES+=("$pkg"); fi
-    done
-
-    if [[ ${#MISSING_PACKAGES[@]} -gt 0 ]]; then
-        if ! ping -c 1 -W 3 8.8.8.8 &>/dev/null; then
-            dialog --backtitle "$T_BACKTITLE" --title "$T_INTERNET" --msgbox "\n$T_ACTIVE:\n\n${MISSING_PACKAGES[*]}" 8 50 > "$CURR_TTY"
-            ExitMenu
-        fi
-
-        (
-            current_p=0
-
-            # --- Function to advance the bar while a command is being processed ---
-            progress_while_running() {
-                local pid=$1
-                local target=$2
-                local msg=$3
-
-                while kill -0 $pid 2>/dev/null; do
-                    if [ $current_p -lt $target ]; then
-                        current_p=$((current_p + 1))
-                        echo "$current_p"
-                        echo "XXX"; echo "$msg"; echo "XXX"
-                    fi
-                    sleep 0.15 
-                done
-
-                current_p=$target
-                echo "$current_p"
-                echo "XXX"; echo "$msg"; echo "XXX"
-            }
-
-            # --- Updating Repositories ---
-            apt-get update -y >/dev/null 2>&1 &
-            progress_while_running $! 25 "$T_UPDATE"
-
-            # --- Installing Packages ---
-            TOTAL=${#MISSING_PACKAGES[@]}
-            COUNT=0
-            for pkg in "${MISSING_PACKAGES[@]}"; do
-                COUNT=$((COUNT + 1))
-               
-                start_section=$(( 25 + ( (COUNT - 1) * 70 / TOTAL ) ))
-                end_section=$(( 25 + ( COUNT * 70 / TOTAL ) ))
-                
-                DEBIAN_FRONTEND=noninteractive apt-get install -y "$pkg" >/dev/null 2>&1 &
-                progress_while_running $! $end_section "$T_PACKAGE $pkg ($COUNT/$TOTAL)..."
-            done
-
-            # --- Finalization ---
-            while [ $current_p -lt 100 ]; do
-                current_p=$((current_p + 1))
-                echo "$current_p"
-                echo "XXX"; echo "$T_COMPLETE"; echo "XXX"
-                sleep 0.05
-            done
-            
-        ) | dialog --backtitle "$T_BACKTITLE" --title "$T_DEPS" --gauge "\n$T_INIT" 8 50 0 > "$CURR_TTY"
-    fi
 }
 
 # -------------------------------------------------------
@@ -193,4 +106,25 @@ while read line; do
 done < <(stdbuf -oL evtest "\$EV" 2>/dev/null)
 EOF
     sudo chmod +x /usr/local/bin/bt-volume-monitor.sh
+}
+
+# -------------------------------------------------------
+# Play Test Chime
+# -------------------------------------------------------
+PlayTestChime() {
+    dialog --backtitle "$T_BACKTITLE" --title "$T_TST_TITLE" --infobox "$T_TST_MSG1" 6 50 > "$CURR_TTY"
+    
+    local SCRIPT="/tmp/bt_test.sh"
+    cat << 'EOF' > $SCRIPT
+#!/bin/bash
+PA="pactl --server=unix:/run/user/1000/pulse/native"
+SINK=$($PA info | grep "Default Sink" | awk '{print $3}')
+$PA play-sample audio-volume-change $SINK 2>/dev/null || \
+    (ffmpeg -f lavfi -i "sine=frequency=440:duration=2" -f pulse "Test Tone" 2>/dev/null)
+EOF
+    chmod +x $SCRIPT
+    sudo -u ark XDG_RUNTIME_DIR=/run/user/1000 PULSE_SERVER=unix:/run/user/1000/pulse/native $SCRIPT
+    
+    dialog --backtitle "$T_BACKTITLE" --title "$T_TST_TITLE" --yesno "$T_TST_MSG2" 8 50 > "$CURR_TTY"
+    rm -f $SCRIPT
 }

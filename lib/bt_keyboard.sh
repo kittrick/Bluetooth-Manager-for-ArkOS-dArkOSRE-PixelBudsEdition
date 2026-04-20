@@ -228,3 +228,70 @@ ListKnownAndConnect() {
     # Send the mapped MAC to the connection process
     [ $dialog_exit -eq 0 ] && ConnectProcess "${k_mac_list[$kselection]}"
 }
+ScanAndConnect() {
+    (
+    AutoEnableBT
+    ) &
+    if ! GetPowerStatus; then
+        dialog --backtitle "$T_BACKTITLE" --title "$T_ERR_TITLE" --msgbox "\n $T_BT_DISABLED" 8 30 > "$CURR_TTY"
+        return
+    fi
+  
+    rm -f /tmp/bt_scan_results.txt
+ 
+    (
+    echo "0"; echo "XXX"; echo "$T_POWERING"; echo "XXX"
+    
+    # Force Controller Identity
+    hciconfig hci0 class 0x000104 > /dev/null 2>&1
+    bluetoothctl power on > /dev/null 2>&1
+    bluetoothctl agent on > /dev/null 2>&1
+    bluetoothctl default-agent > /dev/null 2>&1
+    bluetoothctl pairable on > /dev/null 2>&1
+    bluetoothctl discoverable on > /dev/null 2>&1
+    
+    # Use 'transport auto' to ensure both Classic and LE devices are found
+    bluetoothctl set-scan-filter transport auto > /dev/null 2>&1
+    
+    SCAN_TIME=15
+    bluetoothctl --timeout $SCAN_TIME scan on > /tmp/bt_scan_results.txt 2>&1 &
+    SCAN_PID=$!
+    
+    for ((i=0; i<=SCAN_TIME*10; i++)); do
+        PERCENT=$(( i * 100 / (SCAN_TIME * 10) ))
+        if [ $i -lt 30 ]; then MSG="$T_SCAN_INIT"; 
+        elif [ $i -lt $((SCAN_TIME*5)) ]; then MSG="$T_SCAN_PROCESS (Classic + LE)"; 
+        else MSG="$T_SCAN_RESOLV"; fi
+        
+        echo "$PERCENT"
+        echo "XXX"; echo "$MSG"; echo "XXX"
+        sleep 0.1
+    done
+    wait $SCAN_PID
+    bluetoothctl scan off > /dev/null 2>&1
+    echo "100"
+    ) | dialog --backtitle "$T_BACKTITLE" --title "$T_SCAN_TITLE" --gauge "$T_SCAN_START" 6 45 0 > "$CURR_TTY"
+
+    # Combine 'devices' list with newly discovered ones from the scan log
+    bluetoothctl devices > /tmp/bt_devices_list.txt
+    grep "Device" /tmp/bt_scan_results.txt >> /tmp/bt_devices_list.txt
+    
+    unset coptions
+    unset mac_list
+    local index=1
+    declare -A seen_macs
+    
+    while read -r line; do
+        if [[ "$line" == *"Device"* ]]; then
+            local mac=$(echo "$line" | awk '{print $2}')
+DeleteDevice() {
+    (
+    AutoEnableBT
+    ) &
+    
+    unset doptions
+    unset d_mac_list
+    local index=1
+    
+    while read -r line; do
+        mac=$(echo "$line" | awk '{print $2}')
