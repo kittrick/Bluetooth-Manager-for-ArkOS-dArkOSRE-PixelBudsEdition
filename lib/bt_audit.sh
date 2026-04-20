@@ -22,6 +22,9 @@ RunAudit() {
     safe_log "DMESG" "dmesg | grep -iE 'bluetooth|hci0|firmware|bluez' | tail -n 20" 2
     safe_log "PULSEAUDIO" "pactl info | grep 'Default Sink' && pactl list short sinks" 5
     
+    echo "--- FIRMWARE CHECK ---" >> "$LOG_FILE"
+    ls -l /lib/firmware/rtl_bt/rtl8821c* >> "$LOG_FILE" 2>&1
+    
     echo "--- RAW LE SCAN ---" >> "$LOG_FILE"
     timeout 10 btmgmt find -l >> "$LOG_FILE" 2>&1
     echo "--- END AUDIT ---" >> "$LOG_FILE"

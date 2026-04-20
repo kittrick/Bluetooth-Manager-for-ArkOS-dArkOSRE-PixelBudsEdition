@@ -1,0 +1,66 @@
+=== BT SYSTEM AUDIT: Sun Apr 19 08:58:41 PM PDT 2026 ===
+--- USB DEVICES ---
+Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+Bus 001 Device 003: ID 0bda:c820 Realtek Semiconductor Corp. 802.11ac NIC
+------------------------------------------
+--- USB TOPOLOGY ---
+/sys/bus/usb/devices/1-1/rx_lanes: No such file or directory
+/sys/bus/usb/devices/1-1/tx_lanes: No such file or directory
+/sys/bus/usb/devices/usb1/rx_lanes: No such file or directory
+/sys/bus/usb/devices/usb1/tx_lanes: No such file or directory
+/:  Bus 001.Port 001: Dev 001, Class=root_hub, Driver=dwc2/1p, 480M
+    |__ Port 001: Dev 003, If 0, Class=Wireless, Driver=btusb, 480M
+    |__ Port 001: Dev 003, If 1, Class=Wireless, Driver=btusb, 480M
+    |__ Port 001: Dev 003, If 2, Class=Vendor Specific Class, Driver=rtl8821cu, 480M
+------------------------------------------
+--- DRIVERS ---
+8821cu               1921024  0
+btusb                  36864  0
+btrtl                  12288  1 btusb
+btbcm                  12288  1 btusb
+btintel                12288  1 btusb
+------------------------------------------
+--- HCICONFIG ---
+hci0:	Type: Primary  Bus: USB
+	BD Address: 00:00:00:00:00:00  ACL MTU: 0:0  SCO MTU: 0:0
+	DOWN 
+	RX bytes:917 acl:0 sco:0 events:130 errors:0
+	TX bytes:33030 acl:0 sco:0 commands:131 errors:0
+	Features: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+	Packet type: DM1 DH1 HV1 
+	Link policy: 
+	Link mode: PERIPHERAL ACCEPT 
+
+------------------------------------------
+--- BTMGMT INFO ---
+Index list with 1 item
+hci0:	Primary controller
+	addr 00:00:00:00:00:00 version 8 manufacturer 93 class 0x000000
+	supported settings: powered connectable fast-connectable discoverable bondable link-security br/edr debug-keys 
+	current settings: br/edr 
+	name 
+	short name 
+------------------------------------------
+--- DMESG ---
+[    0.000000] psci: PSCIv1.0 detected in firmware.
+[    1.406724] Bluetooth: Core ver 2.21
+[    1.406813] Bluetooth: HCI device and connection manager initialized
+[    1.406838] Bluetooth: HCI socket layer initialized
+[    1.406860] Bluetooth: L2CAP socket layer initialized
+[    1.406912] Bluetooth: SCO socket layer initialized
+[    6.313366] systemd[1]: systemd-hibernate-clear.service - Clear Stale Hibernate Storage Info was skipped because of an unmet condition check (ConditionPathExists=/sys/firmware/efi/efivars/HibernateLocation-8cf2644b-4b0b-428f-9387-6d876050dc67).
+[    9.456889] Bluetooth: hci0: RTL: rtl: examining hci_ver=08 hci_rev=000c lmp_ver=08 lmp_subver=8821
+[    9.461140] Bluetooth: hci0: RTL: rom_version status=0 version=1
+[    9.461184] Bluetooth: hci0: RTL: rtl: loading rtl_bt/rtl8821c_fw.bin
+[    9.473036] Bluetooth: hci0: RTL: rtl: loading rtl_bt/rtl8821c_config.bin
+[    9.473652] Bluetooth: hci0: RTL: cfg_sz 10, total sz 34926
+[   11.609390] Bluetooth: hci0 command 0xfc20 tx timeout
+[   19.605391] Bluetooth: hci0: RTL: download fw command failed (-110)
+------------------------------------------
+--- PULSEAUDIO ---
+Connection failure: Connection refused
+pa_context_connect() failed: Connection refused
+------------------------------------------
+--- RAW LE SCAN ---
+[0;91mUnable to start discovery. status 0x0f (Not Powered)
+[0m--- END AUDIT ---
