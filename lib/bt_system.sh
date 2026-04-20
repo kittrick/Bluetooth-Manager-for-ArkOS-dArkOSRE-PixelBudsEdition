@@ -81,16 +81,26 @@ PowerShiftBT() {
 
 RestoreWiFi() {
     dialog --backtitle "$T_BACKTITLE" --title "$T_RES_TITLE" --infobox "$T_RES_MSG1" 5 40 > "$CURR_TTY"
+    
+    # 1. Kill Bluetooth processes and drivers
     sudo bluetoothctl power off > /dev/null 2>&1
     sudo systemctl stop bluetooth bluetooth-icon-updater bt-sink-switch bt-volume-monitor 2>/dev/null
     sudo /sbin/modprobe -r rtk_btusb btusb 2>/dev/null
+    sudo rm -f /etc/modprobe.d/bt_temp_block.conf
     sleep 1
-    if [ -e "/sys/bus/usb/drivers/usb/1-1" ]; then
-        echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/unbind > /dev/null
-        sleep 1
-        echo "1-1" | sudo tee /sys/bus/usb/drivers/usb/bind > /dev/null
+    
+    # 2. HARD HARDWARE RESET (The virtual unplug)
+    if [ -e "/sys/bus/usb/devices/1-1/authorized" ]; then
+        echo 0 | sudo tee /sys/bus/usb/devices/1-1/authorized >/dev/null
+        sleep 2
+        echo 1 | sudo tee /sys/bus/usb/devices/1-1/authorized >/dev/null
+        sleep 2
     fi
+    
+    # 3. Reload Wi-Fi Driver
     sudo /sbin/modprobe 8821cu
+    
+    # 4. Give the system a moment to find the network
     sleep 2
     dialog --backtitle "$T_BACKTITLE" --title "$T_RES_TITLE" --msgbox "$T_RES_MSG2" 8 40 > "$CURR_TTY"
 }
